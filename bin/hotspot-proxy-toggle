@@ -196,11 +196,24 @@ socks5_proxy_available() {
   [[ "$response" == "0500" ]]
 }
 
-tcp_endpoint_available() {
+http_proxy_available() {
   local host="$1"
   local port="$2"
+  local first_line
 
-  /usr/bin/nc -G "$PROXY_CHECK_TIMEOUT" -z -w "$PROXY_CHECK_TIMEOUT" "$host" "$port" >/dev/null 2>&1
+  first_line="$(
+    set +e +o pipefail
+    printf 'GET http://127.0.0.1/ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' |
+      /usr/bin/nc -G "$PROXY_CHECK_TIMEOUT" -w "$PROXY_CHECK_TIMEOUT" "$host" "$port" 2>/dev/null |
+      /usr/bin/head -n 1 |
+      /usr/bin/tr -d '\r'
+  )"
+
+  case "$first_line" in
+    HTTP/*" 407 "*) return 1 ;;
+    HTTP/*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 proxy_endpoint_available() {
@@ -209,21 +222,21 @@ proxy_endpoint_available() {
 
   case "$PROXY_TYPE" in
     socks5) socks5_proxy_available "$host" "$port" ;;
-    http) tcp_endpoint_available "$host" "$port" ;;
+    http) http_proxy_available "$host" "$port" ;;
   esac
 }
 
 proxy_check_ok_label() {
   case "$PROXY_TYPE" in
     socks5) printf 'socks5-ok' ;;
-    http) printf 'http-tcp-ok' ;;
+    http) printf 'http-ok' ;;
   esac
 }
 
 proxy_check_missing_label() {
   case "$PROXY_TYPE" in
     socks5) printf 'socks5-missing' ;;
-    http) printf 'http-tcp-missing' ;;
+    http) printf 'http-missing' ;;
   esac
 }
 

@@ -97,7 +97,7 @@ macOS proxy setting을 켜기 전에 아래 응답을 요구함:
 
 이 확인은 단순히 TCP port가 열려 있는지가 아니라 해당 port가 SOCKS5 no-auth proxy인지 검증함.
 
-`http` backend는 `REQUIRE_PROXY_CHECK=1`일 때 `router:PROXY_PORT` TCP connect 가능 여부를 확인함. HTTP proxy request/response 검증, authentication, PAC 처리는 현재 범위가 아님.
+`http` backend는 `REQUIRE_PROXY_CHECK=1`일 때 `router:PROXY_PORT`로 절대 URI 형식의 HTTP request를 보내고 `HTTP/` response line을 요구함. `407 Proxy Authentication Required`는 현재 auth 미지원이므로 실패로 처리함. PAC 처리는 현재 범위가 아님.
 
 ## Reconciliation 규칙
 

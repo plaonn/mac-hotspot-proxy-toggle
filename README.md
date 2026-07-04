@@ -92,7 +92,7 @@ PROXY_CHECK_TIMEOUT=1
 - `PROXY_TYPE=http`: macOS Web Proxy와 Secure Web Proxy를 함께 설정합니다.
 
 `REQUIRE_PROXY_CHECK=1`이면 핫스팟 라우터가 `PROXY_PORT`에서 SOCKS5 no-auth greeting에 응답할 때만 macOS 프록시 설정을 켭니다.
-`PROXY_TYPE=http`에서는 같은 설정이 `router:PROXY_PORT` TCP 연결 가능 여부를 확인합니다.
+`PROXY_TYPE=http`에서는 같은 설정이 `router:PROXY_PORT`가 HTTP proxy처럼 응답하는지 확인합니다.
 
 ## 제거
 

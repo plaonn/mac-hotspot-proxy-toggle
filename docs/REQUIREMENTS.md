@@ -33,7 +33,7 @@
 - 요구사항: 현재 핫스팟 라우터에서 설정된 proxy endpoint가 실제로 사용 가능할 때만 macOS proxy setting을 켬.
 - 근거: 핫스팟에는 연결되어 있어도 휴대폰의 proxy server가 꺼져 있을 수 있음.
 - 방지 실패: 사용할 수 없는 system-wide proxy를 켜서 애플리케이션 네트워크 연결이 깨지는 일을 막음.
-- 명세: `PROXY_TYPE=socks5`와 `REQUIRE_PROXY_CHECK=1`일 때 `router:PROXY_PORT`로 SOCKS5 no-auth greeting을 보내고, proxy setting을 켜기 전에 `0500` 응답을 요구함. `PROXY_TYPE=http`에서는 HTTP proxy protocol을 재구현하지 않고 `router:PROXY_PORT` TCP connect 가능 여부를 확인함.
+- 명세: `PROXY_TYPE=socks5`와 `REQUIRE_PROXY_CHECK=1`일 때 `router:PROXY_PORT`로 SOCKS5 no-auth greeting을 보내고, proxy setting을 켜기 전에 `0500` 응답을 요구함. `PROXY_TYPE=http`에서는 proxy에 절대 URI 형식의 HTTP request를 보내고 `HTTP/` response line을 요구함. `407 Proxy Authentication Required`는 현재 auth 미지원이므로 실패로 처리함.
 - 테스트: endpoint가 없으면 `run`은 `status=proxy-unavailable proxy_type=... action=off`를 보고하고 macOS proxy state를 끔.
 - 자동 테스트: `./tests/run.sh`는 endpoint unavailable이면 off decision, available이면 current router로 on decision을 검증함.
 

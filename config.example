@@ -18,6 +18,6 @@ HOTSPOT_DHCP_MARKERS='ANDROID_METERED'
 STRICT_SSID=0
 
 # macOS proxy setting을 켜기 전에 endpoint 확인을 요구함.
-# socks5는 no-auth handshake를 확인하고, http는 TCP connect를 확인함.
+# socks5는 no-auth handshake를 확인하고, http는 HTTP 응답 형식을 확인함.
 REQUIRE_PROXY_CHECK=1
 PROXY_CHECK_TIMEOUT=1

@@ -26,7 +26,7 @@ Config:
   ~/.config/hotspot-proxy-toggle.conf
 
 Required:
-  PROXY_TYPE=socks5
+  PROXY_TYPE=socks5|http
   PROXY_PORT=1080
 
 Optional:
@@ -65,10 +65,13 @@ load_config() {
 }
 
 validate_config() {
-  if [[ "$PROXY_TYPE" != "socks5" ]]; then
-    printf 'unsupported PROXY_TYPE: %s\n' "$PROXY_TYPE" >&2
-    return 64
-  fi
+  case "$PROXY_TYPE" in
+    socks5|http) ;;
+    *)
+      printf 'unsupported PROXY_TYPE: %s (supported: socks5, http)\n' "$PROXY_TYPE" >&2
+      return 64
+      ;;
+  esac
 }
 
 run_cmd() {
@@ -158,8 +161,22 @@ csv_marker_in_text() {
   return 1
 }
 
-current_proxy_state() {
+current_socks5_proxy_state() {
   /usr/sbin/networksetup -getsocksfirewallproxy "$NETWORK_SERVICE"
+}
+
+current_http_proxy_state() {
+  printf 'Web Proxy:\n'
+  /usr/sbin/networksetup -getwebproxy "$NETWORK_SERVICE"
+  printf 'Secure Web Proxy:\n'
+  /usr/sbin/networksetup -getsecurewebproxy "$NETWORK_SERVICE"
+}
+
+current_proxy_state() {
+  case "$PROXY_TYPE" in
+    socks5) current_socks5_proxy_state ;;
+    http) current_http_proxy_state ;;
+  esac
 }
 
 socks5_proxy_available() {
@@ -179,15 +196,76 @@ socks5_proxy_available() {
   [[ "$response" == "0500" ]]
 }
 
-set_proxy_on() {
+tcp_endpoint_available() {
+  local host="$1"
+  local port="$2"
+
+  /usr/bin/nc -G "$PROXY_CHECK_TIMEOUT" -z -w "$PROXY_CHECK_TIMEOUT" "$host" "$port" >/dev/null 2>&1
+}
+
+proxy_endpoint_available() {
+  local host="$1"
+  local port="$2"
+
+  case "$PROXY_TYPE" in
+    socks5) socks5_proxy_available "$host" "$port" ;;
+    http) tcp_endpoint_available "$host" "$port" ;;
+  esac
+}
+
+proxy_check_ok_label() {
+  case "$PROXY_TYPE" in
+    socks5) printf 'socks5-ok' ;;
+    http) printf 'http-tcp-ok' ;;
+  esac
+}
+
+proxy_check_missing_label() {
+  case "$PROXY_TYPE" in
+    socks5) printf 'socks5-missing' ;;
+    http) printf 'http-tcp-missing' ;;
+  esac
+}
+
+proxy_display_name() {
+  case "$PROXY_TYPE" in
+    socks5) printf 'SOCKS5' ;;
+    http) printf 'HTTP' ;;
+  esac
+}
+
+socks5_proxy_state_matches() {
   local router="$1"
   local current
 
-  current="$(current_proxy_state)"
+  current="$(current_socks5_proxy_state)"
   if printf '%s\n' "$current" | /usr/bin/grep -q '^Enabled: Yes$' &&
      printf '%s\n' "$current" | /usr/bin/grep -q "^Server: $router$" &&
      printf '%s\n' "$current" | /usr/bin/grep -q "^Port: $PROXY_PORT$"; then
-    log "already enabled for $router:$PROXY_PORT"
+    return 0
+  fi
+
+  return 1
+}
+
+http_single_proxy_state_matches() {
+  local state="$1"
+  local router="$2"
+
+  if printf '%s\n' "$state" | /usr/bin/grep -q '^Enabled: Yes$' &&
+     printf '%s\n' "$state" | /usr/bin/grep -q "^Server: $router$" &&
+     printf '%s\n' "$state" | /usr/bin/grep -q "^Port: $PROXY_PORT$"; then
+    return 0
+  fi
+
+  return 1
+}
+
+set_socks5_proxy_on() {
+  local router="$1"
+
+  if socks5_proxy_state_matches "$router"; then
+    log "already enabled SOCKS5 proxy for $router:$PROXY_PORT"
     return 0
   fi
 
@@ -196,10 +274,49 @@ set_proxy_on() {
   log "enabled SOCKS proxy for $NETWORK_SERVICE via $router:$PROXY_PORT"
 }
 
-set_proxy_off() {
+set_http_proxy_on() {
+  local router="$1"
+  local web secure changed=0
+
+  web="$(/usr/sbin/networksetup -getwebproxy "$NETWORK_SERVICE")"
+  secure="$(/usr/sbin/networksetup -getsecurewebproxy "$NETWORK_SERVICE")"
+
+  if http_single_proxy_state_matches "$web" "$router" &&
+     http_single_proxy_state_matches "$secure" "$router"; then
+    log "already enabled HTTP proxy for $router:$PROXY_PORT"
+    return 0
+  fi
+
+  if ! http_single_proxy_state_matches "$web" "$router"; then
+    run_cmd /usr/sbin/networksetup -setwebproxy "$NETWORK_SERVICE" "$router" "$PROXY_PORT"
+    run_cmd /usr/sbin/networksetup -setwebproxystate "$NETWORK_SERVICE" on
+    changed=1
+  fi
+
+  if ! http_single_proxy_state_matches "$secure" "$router"; then
+    run_cmd /usr/sbin/networksetup -setsecurewebproxy "$NETWORK_SERVICE" "$router" "$PROXY_PORT"
+    run_cmd /usr/sbin/networksetup -setsecurewebproxystate "$NETWORK_SERVICE" on
+    changed=1
+  fi
+
+  if [[ "$changed" == "1" ]]; then
+    log "enabled HTTP proxy for $NETWORK_SERVICE via $router:$PROXY_PORT"
+  fi
+}
+
+set_proxy_on() {
+  local router="$1"
+
+  case "$PROXY_TYPE" in
+    socks5) set_socks5_proxy_on "$router" ;;
+    http) set_http_proxy_on "$router" ;;
+  esac
+}
+
+set_socks5_proxy_off() {
   local current
 
-  current="$(current_proxy_state)"
+  current="$(current_socks5_proxy_state)"
   if printf '%s\n' "$current" | /usr/bin/grep -q '^Enabled: No$'; then
     log "already disabled"
     return 0
@@ -207,6 +324,37 @@ set_proxy_off() {
 
   run_cmd /usr/sbin/networksetup -setsocksfirewallproxystate "$NETWORK_SERVICE" off
   log "disabled SOCKS proxy for $NETWORK_SERVICE"
+}
+
+set_http_proxy_off() {
+  local web secure changed=0
+
+  web="$(/usr/sbin/networksetup -getwebproxy "$NETWORK_SERVICE")"
+  secure="$(/usr/sbin/networksetup -getsecurewebproxy "$NETWORK_SERVICE")"
+
+  if ! printf '%s\n' "$web" | /usr/bin/grep -q '^Enabled: No$'; then
+    run_cmd /usr/sbin/networksetup -setwebproxystate "$NETWORK_SERVICE" off
+    changed=1
+  fi
+
+  if ! printf '%s\n' "$secure" | /usr/bin/grep -q '^Enabled: No$'; then
+    run_cmd /usr/sbin/networksetup -setsecurewebproxystate "$NETWORK_SERVICE" off
+    changed=1
+  fi
+
+  if [[ "$changed" == "0" ]]; then
+    log "already disabled HTTP proxy"
+    return 0
+  fi
+
+  log "disabled HTTP proxy for $NETWORK_SERVICE"
+}
+
+set_proxy_off() {
+  case "$PROXY_TYPE" in
+    socks5) set_socks5_proxy_off ;;
+    http) set_http_proxy_off ;;
+  esac
 }
 
 evaluate() {
@@ -280,10 +428,10 @@ do_status() {
 
   if [[ "$rc" == "0" && -n "$PROXY_PORT" && "$REQUIRE_PROXY_CHECK" == "1" ]]; then
     router="$(printf '%s\n' "$result" | router_from_evaluation)"
-    if socks5_proxy_available "$router" "$PROXY_PORT"; then
-      printf 'proxy_check=socks5-ok router=%s port=%s\n' "$router" "$PROXY_PORT"
+    if proxy_endpoint_available "$router" "$PROXY_PORT"; then
+      printf 'proxy_check=%s router=%s port=%s\n' "$(proxy_check_ok_label)" "$router" "$PROXY_PORT"
     else
-      printf 'proxy_check=socks5-missing router=%s port=%s\n' "$router" "$PROXY_PORT"
+      printf 'proxy_check=%s router=%s port=%s\n' "$(proxy_check_missing_label)" "$router" "$PROXY_PORT"
     fi
   fi
 
@@ -313,9 +461,9 @@ do_run() {
   fi
 
   router="$(printf '%s\n' "$result" | router_from_evaluation)"
-  if [[ "$REQUIRE_PROXY_CHECK" == "1" ]] && ! socks5_proxy_available "$router" "$PROXY_PORT"; then
-    printf 'status=proxy-unavailable router=%s port=%s action=off\n' "$router" "$PROXY_PORT"
-    log "SOCKS5 unavailable at $router:$PROXY_PORT"
+  if [[ "$REQUIRE_PROXY_CHECK" == "1" ]] && ! proxy_endpoint_available "$router" "$PROXY_PORT"; then
+    printf 'status=proxy-unavailable proxy_type=%s router=%s port=%s action=off\n' "$PROXY_TYPE" "$router" "$PROXY_PORT"
+    log "$(proxy_display_name) proxy unavailable at $router:$PROXY_PORT"
     set_proxy_off
     return 0
   fi

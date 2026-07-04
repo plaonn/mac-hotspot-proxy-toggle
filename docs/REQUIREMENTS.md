@@ -33,8 +33,8 @@
 - 요구사항: 현재 핫스팟 라우터에서 설정된 proxy endpoint가 실제로 사용 가능할 때만 macOS proxy setting을 켬.
 - 근거: 핫스팟에는 연결되어 있어도 휴대폰의 proxy server가 꺼져 있을 수 있음.
 - 방지 실패: 사용할 수 없는 system-wide proxy를 켜서 애플리케이션 네트워크 연결이 깨지는 일을 막음.
-- 명세: `PROXY_TYPE=socks5`와 `REQUIRE_PROXY_CHECK=1`일 때 `router:PROXY_PORT`로 SOCKS5 no-auth greeting을 보내고, proxy setting을 켜기 전에 `0500` 응답을 요구함.
-- 테스트: endpoint가 없으면 `run`은 `status=proxy-unavailable ... action=off`를 보고하고 macOS proxy state를 끔.
+- 명세: `PROXY_TYPE=socks5`와 `REQUIRE_PROXY_CHECK=1`일 때 `router:PROXY_PORT`로 SOCKS5 no-auth greeting을 보내고, proxy setting을 켜기 전에 `0500` 응답을 요구함. `PROXY_TYPE=http`에서는 HTTP proxy protocol을 재구현하지 않고 `router:PROXY_PORT` TCP connect 가능 여부를 확인함.
+- 테스트: endpoint가 없으면 `run`은 `status=proxy-unavailable proxy_type=... action=off`를 보고하고 macOS proxy state를 끔.
 - 자동 테스트: `./tests/run.sh`는 endpoint unavailable이면 off decision, available이면 current router로 on decision을 검증함.
 
 ## R4: 유지보수 가능한 자동화 경계
@@ -52,3 +52,11 @@
 - 방지 실패: private Todoist ID, Codex thread ID, SSID, log, local absolute path, personal runtime state가 유출되는 일을 막음.
 - 명세: Public docs는 동작과 사용법을 generic하게 설명함. Private planning과 Todoist mapping은 Git에서 ignore되는 `.private/` 아래에 둠.
 - 테스트: `git status --short`에 `.private/` 내용, log, local config, generated plist file이 나오면 안 됨.
+
+## R6: 명시적 Proxy Backend
+
+- 요구사항: 지원하는 proxy backend는 `PROXY_TYPE`으로 명시하고, backend별 macOS proxy setting을 서로 섞지 않음.
+- 근거: SOCKS5, HTTP Web Proxy, PAC은 macOS `networksetup` command와 endpoint semantics가 다름.
+- 방지 실패: 새 proxy type을 추가하면서 SOCKS 전용 설정이나 검증을 잘못 재사용하는 일을 막음.
+- 명세: `PROXY_TYPE=socks5`는 SOCKS firewall proxy만 reconcile함. `PROXY_TYPE=http`는 Web Proxy와 Secure Web Proxy를 같은 router/port로 함께 reconcile함. 지원하지 않는 값은 supported list와 함께 거부함.
+- 테스트: `./tests/run.sh`는 `http` backend on decision과 unsupported `PROXY_TYPE` rejection을 검증함.

@@ -3,10 +3,10 @@
 NETWORK_SERVICE='Wi-Fi'
 WIFI_DEVICE=''
 
-# 필수. 현재 release에서는 socks5만 지원함.
+# 필수. socks5 또는 http를 지원함.
 PROXY_TYPE=socks5
 
-# 필수. 휴대폰이 핫스팟 라우터 IP 위에서 SOCKS5 proxy를 여는 port.
+# 필수. 휴대폰이 핫스팟 라우터 IP 위에서 proxy를 여는 port.
 PROXY_PORT=1080
 
 # 선택. 정확히 매칭할 SSID allow-list. 쉼표로 구분함.
@@ -17,6 +17,7 @@ HOTSPOT_SSIDS=''
 HOTSPOT_DHCP_MARKERS='ANDROID_METERED'
 STRICT_SSID=0
 
-# macOS proxy setting을 켜기 전에 SOCKS5 no-auth handshake를 요구함.
+# macOS proxy setting을 켜기 전에 endpoint 확인을 요구함.
+# socks5는 no-auth handshake를 확인하고, http는 TCP connect를 확인함.
 REQUIRE_PROXY_CHECK=1
 PROXY_CHECK_TIMEOUT=1

@@ -90,8 +90,12 @@ socks5_proxy_available() {
   [[ "$PROXY_AVAILABLE" == "1" ]]
 }
 
+proxy_endpoint_available() {
+  [[ "$PROXY_AVAILABLE" == "1" ]]
+}
+
 set_proxy_on() {
-  PROXY_ACTIONS+=("on:$1:$PROXY_PORT")
+  PROXY_ACTIONS+=("on:$PROXY_TYPE:$1:$PROXY_PORT")
 }
 
 set_proxy_off() {
@@ -186,7 +190,7 @@ run_disables_proxy_when_endpoint_unavailable() {
   output="$(<"$TEST_TMP/run-unavailable.out")"
 
   assert_contains "$output" "status=hotspot" &&
-    assert_contains "$output" "status=proxy-unavailable router=172.20.10.42 port=1080 action=off" &&
+    assert_contains "$output" "status=proxy-unavailable proxy_type=socks5 router=172.20.10.42 port=1080 action=off" &&
     [[ "${PROXY_ACTIONS[*]-}" == "off" ]]
 }
 
@@ -198,7 +202,32 @@ run_enables_proxy_for_available_endpoint() {
 
   do_run >/dev/null
 
-  [[ "${PROXY_ACTIONS[*]-}" == "on:172.20.10.99:1080" ]]
+  [[ "${PROXY_ACTIONS[*]-}" == "on:socks5:172.20.10.99:1080" ]]
+}
+
+run_enables_http_web_proxy_backend() {
+  reset_runtime_state
+  PROXY_TYPE="http"
+  HOTSPOT_SSIDS="My Phone"
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.88\nSSID : My Phone'
+  PROXY_AVAILABLE=1
+
+  do_run >/dev/null
+
+  [[ "${PROXY_ACTIONS[*]-}" == "on:http:172.20.10.88:1080" ]]
+}
+
+unsupported_proxy_type_is_rejected() {
+  reset_runtime_state
+  PROXY_TYPE="pac"
+
+  set +e
+  validate_config >"$TEST_TMP/unsupported.out" 2>&1
+  local rc="$?"
+  set -e
+
+  [[ "$rc" == "64" ]] &&
+    assert_contains "$(<"$TEST_TMP/unsupported.out")" "unsupported PROXY_TYPE: pac (supported: socks5, http)"
 }
 
 run_test "hotspot by exact SSID" hotspot_by_exact_ssid
@@ -207,6 +236,8 @@ run_test "reject non-Wi-Fi default route" reject_non_wifi_default_route
 run_test "strict SSID disables DHCP marker fallback" dhcp_marker_fallback_respects_strict_ssid
 run_test "run disables proxy when endpoint is unavailable" run_disables_proxy_when_endpoint_unavailable
 run_test "run enables proxy for available endpoint" run_enables_proxy_for_available_endpoint
+run_test "run enables HTTP web proxy backend" run_enables_http_web_proxy_backend
+run_test "unsupported proxy type is rejected" unsupported_proxy_type_is_rejected
 
 printf '\n%s passed, %s failed\n' "$PASS_COUNT" "$FAIL_COUNT"
 [[ "$FAIL_COUNT" == "0" ]]

@@ -9,10 +9,13 @@
 현재 backend support:
 
 - `PROXY_TYPE=socks5`
+- `PROXY_TYPE=http`
 
 현재 network service support:
 
-- 하나의 설정된 network service에 대한 macOS `networksetup` SOCKS firewall proxy setting. 기본값은 `Wi-Fi`.
+- 하나의 설정된 network service에 대한 macOS `networksetup` proxy setting. 기본값은 `Wi-Fi`.
+- `socks5`: SOCKS firewall proxy.
+- `http`: Web Proxy와 Secure Web Proxy를 같은 host/port로 함께 설정.
 
 ## Runtime Command 동작
 
@@ -63,7 +66,7 @@ PROXY_CHECK_TIMEOUT=1
 DRY_RUN=0
 ```
 
-`socks5`가 아닌 `PROXY_TYPE` 값은 거부함.
+`socks5` 또는 `http`가 아닌 `PROXY_TYPE` 값은 거부함.
 
 ## 감지
 
@@ -94,13 +97,17 @@ macOS proxy setting을 켜기 전에 아래 응답을 요구함:
 
 이 확인은 단순히 TCP port가 열려 있는지가 아니라 해당 port가 SOCKS5 no-auth proxy인지 검증함.
 
+`http` backend는 `REQUIRE_PROXY_CHECK=1`일 때 `router:PROXY_PORT` TCP connect 가능 여부를 확인함. HTTP proxy request/response 검증, authentication, PAC 처리는 현재 범위가 아님.
+
 ## Reconciliation 규칙
 
 `run`은 아래 규칙을 적용함:
 
-- Wi-Fi가 아니거나, router가 없거나, hotspot이 아니면 설정된 network service의 SOCKS proxy state를 끔.
-- Hotspot candidate지만 proxy endpoint를 사용할 수 없으면 SOCKS proxy state를 끔.
-- Hotspot candidate이고 SOCKS5 endpoint를 사용할 수 있으면 SOCKS host를 현재 router IP로, port를 `PROXY_PORT`로 설정하고 SOCKS proxy state를 켬.
+- Wi-Fi가 아니거나, router가 없거나, hotspot이 아니면 설정된 network service의 backend proxy state를 끔.
+- Hotspot candidate지만 proxy endpoint를 사용할 수 없으면 backend proxy state를 끔.
+- Hotspot candidate이고 endpoint를 사용할 수 있으면 backend별 host를 현재 router IP로, port를 `PROXY_PORT`로 설정하고 proxy state를 켬.
+- `socks5` backend는 SOCKS firewall proxy state를 켬.
+- `http` backend는 Web Proxy와 Secure Web Proxy state를 함께 켬.
 - 현재 macOS proxy state가 이미 desired state와 일치하면 가능한 한 불필요한 `networksetup` write를 피함.
 
 ## 설치

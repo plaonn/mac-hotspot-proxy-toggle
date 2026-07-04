@@ -2,7 +2,7 @@
 
 일치하는 휴대폰 핫스팟과 프록시 endpoint가 있을 때만 macOS 프록시 설정을 켜는 작은 macOS 유틸리티입니다.
 
-현재 release는 현재 핫스팟 라우터 IP 위의 SOCKS5만 지원합니다. 프로젝트 이름과 설정은 proxy-generic하게 유지하여, 나중에 다른 macOS 프록시 타입을 추가할 수 있도록 했습니다.
+현재 release는 현재 핫스팟 라우터 IP 위의 SOCKS5와 HTTP Web Proxy를 지원합니다. `PROXY_TYPE=http`는 macOS Web Proxy와 Secure Web Proxy를 같은 host/port로 함께 설정합니다.
 
 ## 왜 필요한가
 
@@ -86,9 +86,13 @@ REQUIRE_PROXY_CHECK=1
 PROXY_CHECK_TIMEOUT=1
 ```
 
-현재 release에서 지원하는 backend는 `PROXY_TYPE=socks5`뿐입니다.
+지원하는 backend는 다음과 같습니다.
+
+- `PROXY_TYPE=socks5`: macOS SOCKS firewall proxy를 설정합니다.
+- `PROXY_TYPE=http`: macOS Web Proxy와 Secure Web Proxy를 함께 설정합니다.
 
 `REQUIRE_PROXY_CHECK=1`이면 핫스팟 라우터가 `PROXY_PORT`에서 SOCKS5 no-auth greeting에 응답할 때만 macOS 프록시 설정을 켭니다.
+`PROXY_TYPE=http`에서는 같은 설정이 `router:PROXY_PORT` TCP 연결 가능 여부를 확인합니다.
 
 ## 제거
 

@@ -4,12 +4,12 @@
 
 ## 가까운 후보
 
-- 지원하지 않는 proxy type과 사용할 수 없는 dependency에 대한 diagnostics 개선.
+- 사용할 수 없는 dependency에 대한 diagnostics 개선.
 
 ## 나중 후보
 
 - Event-driven helper prototype을 실제 macOS network transition에서 검증하고, 명시적 opt-in 설치 경로를 설계.
-- 실제 use case가 생기면 `PROXY_TYPE` 뒤에 HTTP proxy, PAC configuration 같은 추가 backend 도입.
+- 실제 use case가 생기면 `PROXY_TYPE` 뒤에 PAC configuration 같은 추가 backend 도입.
 - Homebrew formula 같은 packaging option 검토.
 
 ## 비목표

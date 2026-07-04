@@ -5,7 +5,6 @@
 ## 가까운 후보
 
 - 지원하지 않는 proxy type과 사용할 수 없는 dependency에 대한 diagnostics 개선.
-- 프로젝트에 development setup이 문서화되면 `shellcheck` validation 추가.
 
 ## 나중 후보
 

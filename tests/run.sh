@@ -1,4 +1,6 @@
 #!/bin/bash
+# shellcheck disable=SC1091,SC2034
+# This harness sources the runtime script and assigns globals consumed there.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(/usr/bin/dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"

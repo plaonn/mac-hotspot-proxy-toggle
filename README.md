@@ -110,13 +110,21 @@ PROXY_CHECK_TIMEOUT=1
 - [docs/SPEC.md](docs/SPEC.md)
 - [docs/ROADMAP.md](docs/ROADMAP.md)
 
-shell 문법은 다음 명령으로 검증합니다.
+전체 개발 검증은 다음 명령으로 실행합니다.
 
 ```bash
-bash -n bin/hotspot-proxy-toggle install.sh uninstall.sh
+./scripts/validate.sh
 ```
 
-의사결정 로직은 macOS 프록시 설정을 바꾸지 않는 shell test harness로 검증합니다.
+이 명령은 shell 문법 검사, 의사결정 로직 테스트, `shellcheck` 정적 분석을 실행합니다. `shellcheck`가 설치되어 있지 않으면 정적 분석만 건너뜁니다.
+
+macOS에서 `shellcheck`는 Homebrew로 설치할 수 있습니다.
+
+```bash
+brew install shellcheck
+```
+
+의사결정 로직 테스트만 별도로 실행하려면 다음 명령을 사용합니다. 이 테스트는 macOS 프록시 설정을 바꾸지 않습니다.
 
 ```bash
 ./tests/run.sh

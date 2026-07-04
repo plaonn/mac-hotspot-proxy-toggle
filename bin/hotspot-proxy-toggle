@@ -3,6 +3,7 @@ set -euo pipefail
 
 CONFIG_PATH="${HOTSPOT_PROXY_CONFIG:-$HOME/.config/hotspot-proxy-toggle.conf}"
 LOG_PATH="${HOTSPOT_PROXY_LOG:-$HOME/Library/Logs/hotspot-proxy-toggle.log}"
+STATE_PATH="${HOTSPOT_PROXY_STATE:-$HOME/Library/Application Support/hotspot-proxy-toggle/state}"
 
 NETWORK_SERVICE="${NETWORK_SERVICE:-Wi-Fi}"
 WIFI_DEVICE="${WIFI_DEVICE:-}"
@@ -41,6 +42,7 @@ Optional:
   WIFI_DEVICE='en0'
   DRY_RUN=1
   NOTIFY_ON_CHANGE=1
+  HOTSPOT_PROXY_STATE="$HOME/Library/Application Support/hotspot-proxy-toggle/state"
 EOF
 }
 
@@ -66,6 +68,7 @@ load_config() {
   PROXY_CHECK_TIMEOUT="${PROXY_CHECK_TIMEOUT:-1}"
   DRY_RUN="${DRY_RUN:-0}"
   NOTIFY_ON_CHANGE="${NOTIFY_ON_CHANGE:-0}"
+  STATE_PATH="${HOTSPOT_PROXY_STATE:-${STATE_PATH:-$HOME/Library/Application Support/hotspot-proxy-toggle/state}}"
 }
 
 validate_config() {
@@ -262,14 +265,36 @@ apple_script_escape() {
   printf '%s' "$value"
 }
 
-notify_proxy_change() {
+notification_state_changed() {
+  local state_key="$1"
+  local previous_state=""
+
+  if [[ "$PROXY_STATE_CHANGED" == "1" ]]; then
+    return 0
+  fi
+
+  if [[ -f "$STATE_PATH" ]]; then
+    previous_state="$(<"$STATE_PATH")"
+  fi
+
+  [[ "$previous_state" != "$state_key" ]]
+}
+
+write_notification_state() {
+  local state_key="$1"
+
+  /bin/mkdir -p "$(/usr/bin/dirname "$STATE_PATH")" || {
+    log "notification state write skipped: failed to create state directory"
+    return 0
+  }
+  printf '%s\n' "$state_key" >"$STATE_PATH" ||
+    log "notification state write failed: $STATE_PATH"
+}
+
+send_macos_notification() {
   local subtitle="$1"
   local body="$2"
   local escaped_subtitle escaped_body
-
-  if [[ "$NOTIFY_ON_CHANGE" != "1" || "$DRY_RUN" == "1" || "$PROXY_STATE_CHANGED" != "1" ]]; then
-    return 0
-  fi
 
   if [[ ! -x /usr/bin/osascript ]]; then
     log "notification skipped: osascript not found"
@@ -283,6 +308,33 @@ notify_proxy_change() {
     -e "display notification \"$escaped_body\" with title \"hotspot-proxy-toggle\" subtitle \"$escaped_subtitle\"" \
     >/dev/null 2>&1 ||
     log "notification failed: $subtitle"
+}
+
+notify_reconcile_change() {
+  local state_key="$1"
+  local subtitle="$2"
+  local body="$3"
+
+  if [[ "$NOTIFY_ON_CHANGE" != "1" || "$DRY_RUN" == "1" ]]; then
+    return 0
+  fi
+
+  if notification_state_changed "$state_key"; then
+    send_macos_notification "$subtitle" "$body"
+  fi
+
+  write_notification_state "$state_key"
+}
+
+inactive_notification_body() {
+  local result="$1"
+
+  case "$result" in
+    status=not-hotspot*) printf 'Current Wi-Fi does not match hotspot conditions.' ;;
+    status=not-wifi*) printf 'Default route is not the configured Wi-Fi service.' ;;
+    status=no-router*) printf 'Current Wi-Fi has no router address.' ;;
+    *) printf 'Hotspot is not active.' ;;
+  esac
 }
 
 socks5_proxy_state_matches() {
@@ -524,7 +576,7 @@ do_run() {
 
   if [[ "$rc" != "0" ]]; then
     set_all_supported_proxies_off
-    notify_proxy_change "Proxy disabled" "Hotspot is not active."
+    notify_reconcile_change "off:$PROXY_TYPE:$result" "Proxy inactive" "$(inactive_notification_body "$result")"
     return 0
   fi
 
@@ -533,12 +585,12 @@ do_run() {
     printf 'status=proxy-unavailable proxy_type=%s router=%s port=%s action=off\n' "$PROXY_TYPE" "$router" "$PROXY_PORT"
     log "$(proxy_display_name) proxy unavailable at $router:$PROXY_PORT"
     set_all_supported_proxies_off
-    notify_proxy_change "Proxy disabled" "$(proxy_display_name) endpoint is unavailable."
+    notify_reconcile_change "off:$PROXY_TYPE:$result:proxy-unavailable" "Proxy inactive" "$(proxy_display_name) endpoint is unavailable."
     return 0
   fi
 
   set_proxy_on "$router"
-  notify_proxy_change "Proxy enabled" "$(proxy_display_name) proxy is active for the current hotspot."
+  notify_reconcile_change "on:$PROXY_TYPE:$result" "Proxy enabled" "$(proxy_display_name) proxy is active for the current hotspot."
 }
 
 main() {

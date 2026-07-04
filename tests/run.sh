@@ -19,6 +19,7 @@ LAST_OUTPUT=""
 PROXY_ACTIONS=()
 PROXY_AVAILABLE=1
 NOTIFICATIONS=()
+MOCK_PROXY_CHANGE_ON_OFF=1
 
 record_pass() {
   PASS_COUNT=$((PASS_COUNT + 1))
@@ -66,12 +67,15 @@ reset_runtime_state() {
   PROXY_CHECK_TIMEOUT="1"
   DRY_RUN="0"
   NOTIFY_ON_CHANGE="0"
+  STATE_PATH="$TEST_TMP/notify-state"
+  rm -f "$STATE_PATH"
   PROXY_STATE_CHANGED=0
   MOCK_DEFAULT_INTERFACE="en0"
   MOCK_IPCONFIG_SUMMARY=""
   PROXY_ACTIONS=()
   PROXY_AVAILABLE=1
   NOTIFICATIONS=()
+  MOCK_PROXY_CHANGE_ON_OFF=1
 }
 
 wifi_device_from_hardware_ports() {
@@ -100,12 +104,16 @@ proxy_endpoint_available() {
 
 set_socks5_proxy_off() {
   PROXY_ACTIONS+=("off:socks5")
-  mark_proxy_changed
+  if [[ "$MOCK_PROXY_CHANGE_ON_OFF" == "1" ]]; then
+    mark_proxy_changed
+  fi
 }
 
 set_http_proxy_off() {
   PROXY_ACTIONS+=("off:http")
-  mark_proxy_changed
+  if [[ "$MOCK_PROXY_CHANGE_ON_OFF" == "1" ]]; then
+    mark_proxy_changed
+  fi
 }
 
 set_socks5_proxy_on() {
@@ -118,10 +126,8 @@ set_http_proxy_on() {
   mark_proxy_changed
 }
 
-notify_proxy_change() {
-  if [[ "$NOTIFY_ON_CHANGE" == "1" && "$DRY_RUN" != "1" && "$PROXY_STATE_CHANGED" == "1" ]]; then
-    NOTIFICATIONS+=("$1:$2")
-  fi
+send_macos_notification() {
+  NOTIFICATIONS+=("$1:$2")
 }
 
 log() {
@@ -259,7 +265,8 @@ run_notifies_when_proxy_enabled_and_opted_in() {
 
   do_run >/dev/null
 
-  [[ "${NOTIFICATIONS[*]-}" == "Proxy enabled:SOCKS5 proxy is active for the current hotspot." ]]
+  [[ "${NOTIFICATIONS[*]-}" == "Proxy enabled:SOCKS5 proxy is active for the current hotspot." ]] &&
+    [[ "$(<"$STATE_PATH")" == "on:socks5:status=hotspot reason=ssid wifi_device=en0 router=172.20.10.99 ssid=My\\ Phone" ]]
 }
 
 run_notifies_when_endpoint_unavailable_and_opted_in() {
@@ -271,7 +278,34 @@ run_notifies_when_endpoint_unavailable_and_opted_in() {
 
   do_run >/dev/null
 
-  [[ "${NOTIFICATIONS[*]-}" == "Proxy disabled:SOCKS5 endpoint is unavailable." ]]
+  [[ "${NOTIFICATIONS[*]-}" == "Proxy inactive:SOCKS5 endpoint is unavailable." ]]
+}
+
+run_notifies_when_ssid_context_changes_and_proxy_already_off() {
+  reset_runtime_state
+  NOTIFY_ON_CHANGE=1
+  MOCK_PROXY_CHANGE_ON_OFF=0
+  HOTSPOT_SSIDS="Phone"
+  printf '%s\n' 'off:socks5:status=not-hotspot wifi_device=en0 router=172.20.10.77 ssid=Coffee reason=no-match' >"$STATE_PATH"
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.77\nSSID : Office'
+
+  do_run >/dev/null
+
+  [[ "${NOTIFICATIONS[*]-}" == "Proxy inactive:Current Wi-Fi does not match hotspot conditions." ]] &&
+    [[ "$(<"$STATE_PATH")" == "off:socks5:status=not-hotspot wifi_device=en0 router=172.20.10.77 ssid=Office reason=no-match" ]]
+}
+
+run_does_not_repeat_context_notification_without_change() {
+  reset_runtime_state
+  NOTIFY_ON_CHANGE=1
+  MOCK_PROXY_CHANGE_ON_OFF=0
+  HOTSPOT_SSIDS="Phone"
+  printf '%s\n' 'off:socks5:status=not-hotspot wifi_device=en0 router=172.20.10.77 ssid=Office reason=no-match' >"$STATE_PATH"
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.77\nSSID : Office'
+
+  do_run >/dev/null
+
+  [[ "${NOTIFICATIONS[*]-}" == "" ]]
 }
 
 run_disables_all_supported_backends_when_not_hotspot() {
@@ -307,6 +341,8 @@ run_test "run enables HTTP web proxy backend" run_enables_http_web_proxy_backend
 run_test "notification is opt-in for proxy enable" notification_is_opt_in_for_proxy_enable
 run_test "run notifies when proxy enabled and opted in" run_notifies_when_proxy_enabled_and_opted_in
 run_test "run notifies when endpoint unavailable and opted in" run_notifies_when_endpoint_unavailable_and_opted_in
+run_test "run notifies when SSID context changes and proxy already off" run_notifies_when_ssid_context_changes_and_proxy_already_off
+run_test "run does not repeat context notification without change" run_does_not_repeat_context_notification_without_change
 run_test "run disables all supported backends when not hotspot" run_disables_all_supported_backends_when_not_hotspot
 run_test "unsupported proxy type is rejected" unsupported_proxy_type_is_rejected
 

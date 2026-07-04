@@ -130,7 +130,13 @@ NOTIFY_ON_CHANGE=0
 `REQUIRE_PROXY_CHECK=1`이면 핫스팟 라우터가 `PROXY_PORT`에서 SOCKS5 no-auth greeting에 응답할 때만 macOS 프록시 설정을 켭니다.
 `PROXY_TYPE=http`에서는 같은 설정이 `router:PROXY_PORT`가 HTTP proxy처럼 응답하는지 확인합니다.
 
-`NOTIFY_ON_CHANGE=1`이면 `run`이 실제 macOS 프록시 설정을 변경했을 때 macOS notification을 표시합니다. 이미 원하는 상태라서 변경할 것이 없으면 알림을 보내지 않습니다.
+`NOTIFY_ON_CHANGE=1`이면 `run`의 최종 reconciliation state가 바뀌거나 실제 macOS 프록시 설정 변경이 있었을 때 macOS notification을 표시합니다. 예를 들어 SSID가 바뀌어 현재 Wi-Fi가 hotspot 조건과 맞지 않게 된 경우에도 한 번 알립니다. 같은 상태가 유지되는 동안에는 polling이나 helper watchdog이 다시 실행되어도 반복 알림을 보내지 않습니다.
+
+Notification 중복을 막기 위한 마지막 상태는 다음 local state file에 저장합니다.
+
+```text
+~/Library/Application Support/hotspot-proxy-toggle/state
+```
 
 ## 제거
 

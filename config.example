@@ -25,3 +25,6 @@ PROXY_CHECK_TIMEOUT=1
 # 최종 reconciliation state가 바뀌거나 실제 proxy setting 변경이 있을 때
 # macOS notification을 표시함.
 NOTIFY_ON_CHANGE=0
+
+# auto, en, ko를 지원함. auto는 macOS 언어 설정을 사용함.
+NOTIFICATION_LOCALE=auto

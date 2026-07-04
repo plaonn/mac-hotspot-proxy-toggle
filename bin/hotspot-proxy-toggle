@@ -16,6 +16,7 @@ REQUIRE_PROXY_CHECK="${REQUIRE_PROXY_CHECK:-1}"
 PROXY_CHECK_TIMEOUT="${PROXY_CHECK_TIMEOUT:-1}"
 DRY_RUN="${DRY_RUN:-0}"
 NOTIFY_ON_CHANGE="${NOTIFY_ON_CHANGE:-0}"
+NOTIFICATION_LOCALE="${NOTIFICATION_LOCALE:-auto}"
 PROXY_STATE_CHANGED=0
 
 usage() {
@@ -42,6 +43,7 @@ Optional:
   WIFI_DEVICE='en0'
   DRY_RUN=1
   NOTIFY_ON_CHANGE=1
+  NOTIFICATION_LOCALE=auto
   HOTSPOT_PROXY_STATE="$HOME/Library/Application Support/hotspot-proxy-toggle/state"
 EOF
 }
@@ -68,6 +70,7 @@ load_config() {
   PROXY_CHECK_TIMEOUT="${PROXY_CHECK_TIMEOUT:-1}"
   DRY_RUN="${DRY_RUN:-0}"
   NOTIFY_ON_CHANGE="${NOTIFY_ON_CHANGE:-0}"
+  NOTIFICATION_LOCALE="${NOTIFICATION_LOCALE:-auto}"
   STATE_PATH="${HOTSPOT_PROXY_STATE:-${STATE_PATH:-$HOME/Library/Application Support/hotspot-proxy-toggle/state}}"
 }
 
@@ -76,6 +79,14 @@ validate_config() {
     socks5|http) ;;
     *)
       printf 'unsupported PROXY_TYPE: %s (supported: socks5, http)\n' "$PROXY_TYPE" >&2
+      return 64
+      ;;
+  esac
+
+  case "$NOTIFICATION_LOCALE" in
+    auto|en|ko) ;;
+    *)
+      printf 'unsupported NOTIFICATION_LOCALE: %s (supported: auto, en, ko)\n' "$NOTIFICATION_LOCALE" >&2
       return 64
       ;;
   esac
@@ -291,23 +302,106 @@ write_notification_state() {
     log "notification state write failed: $STATE_PATH"
 }
 
+resolve_notification_locale() {
+  local lang locale
+
+  case "$NOTIFICATION_LOCALE" in
+    en|ko)
+      printf '%s' "$NOTIFICATION_LOCALE"
+      return 0
+      ;;
+  esac
+
+  lang="$(
+    /usr/bin/defaults read -g AppleLanguages 2>/dev/null |
+      /usr/bin/awk -F'[", ]+' '
+        {
+          for (i = 1; i <= NF; i++) {
+            if ($i ~ /^[A-Za-z][A-Za-z]([-_][A-Za-z0-9]+)?$/) {
+              print $i
+              exit
+            }
+          }
+        }
+      '
+  )"
+  locale="$(/usr/bin/defaults read -g AppleLocale 2>/dev/null || true)"
+
+  case "$lang:$locale" in
+    ko*:*|*:ko*) printf 'ko' ;;
+    *) printf 'en' ;;
+  esac
+}
+
+notification_title() {
+  local kind="$1"
+  local locale
+
+  locale="$(resolve_notification_locale)"
+  case "$locale:$kind" in
+    ko:on) printf '✅ 핫스팟 프록시 켜짐' ;;
+    ko:unavailable) printf '⚠️ 핫스팟 프록시 사용 불가' ;;
+    ko:idle) printf 'ℹ️ 핫스팟 프록시 대기' ;;
+    en:on) printf '✅ Hotspot Proxy On' ;;
+    en:unavailable) printf '⚠️ Hotspot Proxy Unavailable' ;;
+    en:idle) printf 'ℹ️ Hotspot Proxy Idle' ;;
+  esac
+}
+
+active_notification_body() {
+  case "$(resolve_notification_locale)" in
+    ko) printf '현재 트래픽이 핫스팟 프록시를 사용합니다.' ;;
+    *) printf 'Traffic is using the hotspot proxy.' ;;
+  esac
+}
+
+unavailable_notification_body() {
+  case "$(resolve_notification_locale)" in
+    ko) printf '핫스팟은 감지됐지만 프록시 서버가 응답하지 않습니다.' ;;
+    *) printf 'Hotspot detected, but the proxy server is not responding.' ;;
+  esac
+}
+
+inactive_notification_body() {
+  local result="$1"
+  local locale
+
+  locale="$(resolve_notification_locale)"
+  if [[ "$locale" == "ko" ]]; then
+    case "$result" in
+      status=not-hotspot*) printf '현재 Wi-Fi가 설정된 핫스팟 조건과 맞지 않습니다.' ;;
+      status=not-wifi*) printf 'Wi-Fi가 현재 기본 네트워크 경로가 아닙니다.' ;;
+      status=no-router*) printf '현재 Wi-Fi에서 라우터 주소를 찾지 못했습니다.' ;;
+      *) printf '핫스팟이 활성 상태가 아닙니다.' ;;
+    esac
+    return 0
+  fi
+
+  case "$result" in
+    status=not-hotspot*) printf 'Current Wi-Fi is not a configured hotspot.' ;;
+    status=not-wifi*) printf 'Wi-Fi is not the active network route.' ;;
+    status=no-router*) printf 'Current Wi-Fi has no router address.' ;;
+    *) printf 'Hotspot is not active.' ;;
+  esac
+}
+
 send_macos_notification() {
-  local subtitle="$1"
+  local title="$1"
   local body="$2"
-  local escaped_subtitle escaped_body
+  local escaped_title escaped_body
 
   if [[ ! -x /usr/bin/osascript ]]; then
     log "notification skipped: osascript not found"
     return 0
   fi
 
-  escaped_subtitle="$(apple_script_escape "$subtitle")"
+  escaped_title="$(apple_script_escape "$title")"
   escaped_body="$(apple_script_escape "$body")"
 
   /usr/bin/osascript \
-    -e "display notification \"$escaped_body\" with title \"hotspot-proxy-toggle\" subtitle \"$escaped_subtitle\"" \
+    -e "display notification \"$escaped_body\" with title \"$escaped_title\"" \
     >/dev/null 2>&1 ||
-    log "notification failed: $subtitle"
+    log "notification failed: $title"
 }
 
 notify_reconcile_change() {
@@ -324,17 +418,6 @@ notify_reconcile_change() {
   fi
 
   write_notification_state "$state_key"
-}
-
-inactive_notification_body() {
-  local result="$1"
-
-  case "$result" in
-    status=not-hotspot*) printf 'Current Wi-Fi does not match hotspot conditions.' ;;
-    status=not-wifi*) printf 'Default route is not the configured Wi-Fi service.' ;;
-    status=no-router*) printf 'Current Wi-Fi has no router address.' ;;
-    *) printf 'Hotspot is not active.' ;;
-  esac
 }
 
 socks5_proxy_state_matches() {
@@ -576,7 +659,7 @@ do_run() {
 
   if [[ "$rc" != "0" ]]; then
     set_all_supported_proxies_off
-    notify_reconcile_change "off:$PROXY_TYPE:$result" "Proxy inactive" "$(inactive_notification_body "$result")"
+    notify_reconcile_change "off:$PROXY_TYPE:$result" "$(notification_title idle)" "$(inactive_notification_body "$result")"
     return 0
   fi
 
@@ -585,12 +668,12 @@ do_run() {
     printf 'status=proxy-unavailable proxy_type=%s router=%s port=%s action=off\n' "$PROXY_TYPE" "$router" "$PROXY_PORT"
     log "$(proxy_display_name) proxy unavailable at $router:$PROXY_PORT"
     set_all_supported_proxies_off
-    notify_reconcile_change "off:$PROXY_TYPE:$result:proxy-unavailable" "Proxy inactive" "$(proxy_display_name) endpoint is unavailable."
+    notify_reconcile_change "off:$PROXY_TYPE:$result:proxy-unavailable" "$(notification_title unavailable)" "$(unavailable_notification_body)"
     return 0
   fi
 
   set_proxy_on "$router"
-  notify_reconcile_change "on:$PROXY_TYPE:$result" "Proxy enabled" "$(proxy_display_name) proxy is active for the current hotspot."
+  notify_reconcile_change "on:$PROXY_TYPE:$result" "$(notification_title on)" "$(active_notification_body)"
 }
 
 main() {

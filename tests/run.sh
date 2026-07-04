@@ -67,6 +67,7 @@ reset_runtime_state() {
   PROXY_CHECK_TIMEOUT="1"
   DRY_RUN="0"
   NOTIFY_ON_CHANGE="0"
+  NOTIFICATION_LOCALE="en"
   STATE_PATH="$TEST_TMP/notify-state"
   rm -f "$STATE_PATH"
   PROXY_STATE_CHANGED=0
@@ -265,7 +266,7 @@ run_notifies_when_proxy_enabled_and_opted_in() {
 
   do_run >/dev/null
 
-  [[ "${NOTIFICATIONS[*]-}" == "Proxy enabled:SOCKS5 proxy is active for the current hotspot." ]] &&
+  [[ "${NOTIFICATIONS[*]-}" == "✅ Hotspot Proxy On:Traffic is using the hotspot proxy." ]] &&
     [[ "$(<"$STATE_PATH")" == "on:socks5:status=hotspot reason=ssid wifi_device=en0 router=172.20.10.99 ssid=My\\ Phone" ]]
 }
 
@@ -278,7 +279,7 @@ run_notifies_when_endpoint_unavailable_and_opted_in() {
 
   do_run >/dev/null
 
-  [[ "${NOTIFICATIONS[*]-}" == "Proxy inactive:SOCKS5 endpoint is unavailable." ]]
+  [[ "${NOTIFICATIONS[*]-}" == "⚠️ Hotspot Proxy Unavailable:Hotspot detected, but the proxy server is not responding." ]]
 }
 
 run_notifies_when_ssid_context_changes_and_proxy_already_off() {
@@ -291,8 +292,21 @@ run_notifies_when_ssid_context_changes_and_proxy_already_off() {
 
   do_run >/dev/null
 
-  [[ "${NOTIFICATIONS[*]-}" == "Proxy inactive:Current Wi-Fi does not match hotspot conditions." ]] &&
+  [[ "${NOTIFICATIONS[*]-}" == "ℹ️ Hotspot Proxy Idle:Current Wi-Fi is not a configured hotspot." ]] &&
     [[ "$(<"$STATE_PATH")" == "off:socks5:status=not-hotspot wifi_device=en0 router=172.20.10.77 ssid=Office reason=no-match" ]]
+}
+
+run_uses_korean_notification_locale() {
+  reset_runtime_state
+  NOTIFY_ON_CHANGE=1
+  NOTIFICATION_LOCALE=ko
+  HOTSPOT_SSIDS="My Phone"
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.99\nSSID : My Phone'
+  PROXY_AVAILABLE=1
+
+  do_run >/dev/null
+
+  [[ "${NOTIFICATIONS[*]-}" == "✅ 핫스팟 프록시 켜짐:현재 트래픽이 핫스팟 프록시를 사용합니다." ]]
 }
 
 run_does_not_repeat_context_notification_without_change() {
@@ -331,6 +345,19 @@ unsupported_proxy_type_is_rejected() {
     assert_contains "$(<"$TEST_TMP/unsupported.out")" "unsupported PROXY_TYPE: pac (supported: socks5, http)"
 }
 
+unsupported_notification_locale_is_rejected() {
+  reset_runtime_state
+  NOTIFICATION_LOCALE="fr"
+
+  set +e
+  validate_config >"$TEST_TMP/unsupported-locale.out" 2>&1
+  local rc="$?"
+  set -e
+
+  [[ "$rc" == "64" ]] &&
+    assert_contains "$(<"$TEST_TMP/unsupported-locale.out")" "unsupported NOTIFICATION_LOCALE: fr (supported: auto, en, ko)"
+}
+
 run_test "hotspot by exact SSID" hotspot_by_exact_ssid
 run_test "hotspot by DHCP marker fallback" hotspot_by_dhcp_marker_fallback
 run_test "reject non-Wi-Fi default route" reject_non_wifi_default_route
@@ -343,8 +370,10 @@ run_test "run notifies when proxy enabled and opted in" run_notifies_when_proxy_
 run_test "run notifies when endpoint unavailable and opted in" run_notifies_when_endpoint_unavailable_and_opted_in
 run_test "run notifies when SSID context changes and proxy already off" run_notifies_when_ssid_context_changes_and_proxy_already_off
 run_test "run does not repeat context notification without change" run_does_not_repeat_context_notification_without_change
+run_test "run uses Korean notification locale" run_uses_korean_notification_locale
 run_test "run disables all supported backends when not hotspot" run_disables_all_supported_backends_when_not_hotspot
 run_test "unsupported proxy type is rejected" unsupported_proxy_type_is_rejected
+run_test "unsupported notification locale is rejected" unsupported_notification_locale_is_rejected
 
 printf '\n%s passed, %s failed\n' "$PASS_COUNT" "$FAIL_COUNT"
 [[ "$FAIL_COUNT" == "0" ]]

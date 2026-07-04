@@ -118,6 +118,7 @@ STRICT_SSID=0
 REQUIRE_PROXY_CHECK=1
 PROXY_CHECK_TIMEOUT=1
 NOTIFY_ON_CHANGE=0
+NOTIFICATION_LOCALE=auto
 ```
 
 지원하는 backend는 다음과 같습니다.
@@ -131,6 +132,14 @@ NOTIFY_ON_CHANGE=0
 `PROXY_TYPE=http`에서는 같은 설정이 `router:PROXY_PORT`가 HTTP proxy처럼 응답하는지 확인합니다.
 
 `NOTIFY_ON_CHANGE=1`이면 `run`의 최종 reconciliation state가 바뀌거나 실제 macOS 프록시 설정 변경이 있었을 때 macOS notification을 표시합니다. 예를 들어 SSID가 바뀌어 현재 Wi-Fi가 hotspot 조건과 맞지 않게 된 경우에도 한 번 알립니다. 같은 상태가 유지되는 동안에는 polling이나 helper watchdog이 다시 실행되어도 반복 알림을 보내지 않습니다.
+
+Notification은 세 상태를 구분합니다.
+
+- `✅ Hotspot Proxy On`: 핫스팟 프록시를 사용 중입니다.
+- `⚠️ Hotspot Proxy Unavailable`: 핫스팟은 감지됐지만 프록시 서버가 응답하지 않습니다.
+- `ℹ️ Hotspot Proxy Idle`: 현재 네트워크가 핫스팟 조건과 맞지 않아 프록시를 사용하지 않습니다.
+
+`NOTIFICATION_LOCALE=auto`이면 macOS 언어 설정이 한국어일 때 한국어 문구를 사용하고, 그 외에는 영어 문구를 사용합니다. `NOTIFICATION_LOCALE=en` 또는 `NOTIFICATION_LOCALE=ko`로 고정할 수 있습니다.
 
 Notification 중복을 막기 위한 마지막 상태는 다음 local state file에 저장합니다.
 

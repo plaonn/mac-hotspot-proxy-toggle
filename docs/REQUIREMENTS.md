@@ -17,6 +17,7 @@
 - 방지 실패: 일반 Wi-Fi traffic이 휴대폰 전용 proxy 설정으로 routing되는 일을 막음.
 - 명세: `WIFI_DEVICE` override가 없으면 macOS hardware port discovery로 Wi-Fi interface를 찾음. `HOTSPOT_SSIDS`는 exact match로 판단함. `STRICT_SSID=0`이면 `ANDROID_METERED` 같은 DHCP marker match를 허용함.
 - 테스트: `hotspot-proxy-toggle evaluate`는 default route가 Wi-Fi device이고 hotspot 조건이 일치할 때만 `status=hotspot`을 보고함.
+- 자동 테스트: `./tests/run.sh`는 exact SSID match, non-Wi-Fi default route, strict SSID mode의 DHCP marker fallback 차단을 검증함.
 
 ## R2: 동적 라우터 IP 해석
 
@@ -25,6 +26,7 @@
 - 방지 실패: 같은 휴대폰 핫스팟에 다시 연결한 뒤 stale proxy host 설정이 남는 일을 막음.
 - 명세: 매 reconciliation마다 `ipconfig getsummary <wifi-device>`의 `Router`를 읽음.
 - 테스트: `hotspot-proxy-toggle status`는 hotspot candidate에서 감지된 `router=<ip>`를 포함함.
+- 자동 테스트: `./tests/run.sh`는 감지된 router IP가 reconcile decision에 전달되는지 검증함.
 
 ## R3: Endpoint 확인 기반 프록시 상태
 
@@ -33,6 +35,7 @@
 - 방지 실패: 사용할 수 없는 system-wide proxy를 켜서 애플리케이션 네트워크 연결이 깨지는 일을 막음.
 - 명세: `PROXY_TYPE=socks5`와 `REQUIRE_PROXY_CHECK=1`일 때 `router:PROXY_PORT`로 SOCKS5 no-auth greeting을 보내고, proxy setting을 켜기 전에 `0500` 응답을 요구함.
 - 테스트: endpoint가 없으면 `run`은 `status=proxy-unavailable ... action=off`를 보고하고 macOS proxy state를 끔.
+- 자동 테스트: `./tests/run.sh`는 endpoint unavailable이면 off decision, available이면 current router로 on decision을 검증함.
 
 ## R4: 유지보수 가능한 자동화 경계
 

@@ -115,3 +115,9 @@ shell 문법은 다음 명령으로 검증합니다.
 ```bash
 bash -n bin/hotspot-proxy-toggle install.sh uninstall.sh
 ```
+
+의사결정 로직은 macOS 프록시 설정을 바꾸지 않는 shell test harness로 검증합니다.
+
+```bash
+./tests/run.sh
+```

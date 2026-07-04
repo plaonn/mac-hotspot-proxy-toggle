@@ -4,7 +4,6 @@
 
 ## 가까운 후보
 
-- Parser와 decision logic을 위한 작은 shell-based test harness 추가.
 - 지원하지 않는 proxy type과 사용할 수 없는 dependency에 대한 diagnostics 개선.
 - 프로젝트에 development setup이 문서화되면 `shellcheck` validation 추가.
 

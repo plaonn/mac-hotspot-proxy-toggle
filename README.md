@@ -117,6 +117,7 @@ HOTSPOT_DHCP_MARKERS='ANDROID_METERED'
 STRICT_SSID=0
 REQUIRE_PROXY_CHECK=1
 PROXY_CHECK_TIMEOUT=1
+NOTIFY_ON_CHANGE=0
 ```
 
 지원하는 backend는 다음과 같습니다.
@@ -128,6 +129,8 @@ PROXY_CHECK_TIMEOUT=1
 
 `REQUIRE_PROXY_CHECK=1`이면 핫스팟 라우터가 `PROXY_PORT`에서 SOCKS5 no-auth greeting에 응답할 때만 macOS 프록시 설정을 켭니다.
 `PROXY_TYPE=http`에서는 같은 설정이 `router:PROXY_PORT`가 HTTP proxy처럼 응답하는지 확인합니다.
+
+`NOTIFY_ON_CHANGE=1`이면 `run`이 실제 macOS 프록시 설정을 변경했을 때 macOS notification을 표시합니다. 이미 원하는 상태라서 변경할 것이 없으면 알림을 보내지 않습니다.
 
 ## 제거
 

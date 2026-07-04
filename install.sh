@@ -62,6 +62,7 @@ write_config_if_missing() {
     printf 'STRICT_SSID=%q\n' "${STRICT_SSID:-0}"
     printf 'REQUIRE_PROXY_CHECK=%q\n' "${REQUIRE_PROXY_CHECK:-1}"
     printf 'PROXY_CHECK_TIMEOUT=%q\n' "${PROXY_CHECK_TIMEOUT:-1}"
+    printf 'NOTIFY_ON_CHANGE=%q\n' "${NOTIFY_ON_CHANGE:-0}"
   } >"$CONFIG_PATH"
   printf 'Wrote config: %s\n' "$CONFIG_PATH"
 }

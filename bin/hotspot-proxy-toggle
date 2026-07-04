@@ -14,6 +14,8 @@ STRICT_SSID="${STRICT_SSID:-0}"
 REQUIRE_PROXY_CHECK="${REQUIRE_PROXY_CHECK:-1}"
 PROXY_CHECK_TIMEOUT="${PROXY_CHECK_TIMEOUT:-1}"
 DRY_RUN="${DRY_RUN:-0}"
+NOTIFY_ON_CHANGE="${NOTIFY_ON_CHANGE:-0}"
+PROXY_STATE_CHANGED=0
 
 usage() {
   cat <<'EOF'
@@ -38,6 +40,7 @@ Optional:
   NETWORK_SERVICE='Wi-Fi'
   WIFI_DEVICE='en0'
   DRY_RUN=1
+  NOTIFY_ON_CHANGE=1
 EOF
 }
 
@@ -62,6 +65,7 @@ load_config() {
   REQUIRE_PROXY_CHECK="${REQUIRE_PROXY_CHECK:-1}"
   PROXY_CHECK_TIMEOUT="${PROXY_CHECK_TIMEOUT:-1}"
   DRY_RUN="${DRY_RUN:-0}"
+  NOTIFY_ON_CHANGE="${NOTIFY_ON_CHANGE:-0}"
 }
 
 validate_config() {
@@ -247,6 +251,40 @@ proxy_display_name() {
   esac
 }
 
+mark_proxy_changed() {
+  PROXY_STATE_CHANGED=1
+}
+
+apple_script_escape() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '%s' "$value"
+}
+
+notify_proxy_change() {
+  local subtitle="$1"
+  local body="$2"
+  local escaped_subtitle escaped_body
+
+  if [[ "$NOTIFY_ON_CHANGE" != "1" || "$DRY_RUN" == "1" || "$PROXY_STATE_CHANGED" != "1" ]]; then
+    return 0
+  fi
+
+  if [[ ! -x /usr/bin/osascript ]]; then
+    log "notification skipped: osascript not found"
+    return 0
+  fi
+
+  escaped_subtitle="$(apple_script_escape "$subtitle")"
+  escaped_body="$(apple_script_escape "$body")"
+
+  /usr/bin/osascript \
+    -e "display notification \"$escaped_body\" with title \"hotspot-proxy-toggle\" subtitle \"$escaped_subtitle\"" \
+    >/dev/null 2>&1 ||
+    log "notification failed: $subtitle"
+}
+
 socks5_proxy_state_matches() {
   local router="$1"
   local current
@@ -284,6 +322,7 @@ set_socks5_proxy_on() {
 
   run_cmd /usr/sbin/networksetup -setsocksfirewallproxy "$NETWORK_SERVICE" "$router" "$PROXY_PORT"
   run_cmd /usr/sbin/networksetup -setsocksfirewallproxystate "$NETWORK_SERVICE" on
+  mark_proxy_changed
   log "enabled SOCKS proxy for $NETWORK_SERVICE via $router:$PROXY_PORT"
 }
 
@@ -313,6 +352,7 @@ set_http_proxy_on() {
   fi
 
   if [[ "$changed" == "1" ]]; then
+    mark_proxy_changed
     log "enabled HTTP proxy for $NETWORK_SERVICE via $router:$PROXY_PORT"
   fi
 }
@@ -342,6 +382,7 @@ set_socks5_proxy_off() {
   fi
 
   run_cmd /usr/sbin/networksetup -setsocksfirewallproxystate "$NETWORK_SERVICE" off
+  mark_proxy_changed
   log "disabled SOCKS proxy for $NETWORK_SERVICE"
 }
 
@@ -366,6 +407,7 @@ set_http_proxy_off() {
     return 0
   fi
 
+  mark_proxy_changed
   log "disabled HTTP proxy for $NETWORK_SERVICE"
 }
 
@@ -465,6 +507,7 @@ do_status() {
 do_run() {
   local result rc router
 
+  PROXY_STATE_CHANGED=0
   load_config
   validate_config
   if [[ -z "$PROXY_PORT" ]]; then
@@ -481,6 +524,7 @@ do_run() {
 
   if [[ "$rc" != "0" ]]; then
     set_all_supported_proxies_off
+    notify_proxy_change "Proxy disabled" "Hotspot is not active."
     return 0
   fi
 
@@ -489,10 +533,12 @@ do_run() {
     printf 'status=proxy-unavailable proxy_type=%s router=%s port=%s action=off\n' "$PROXY_TYPE" "$router" "$PROXY_PORT"
     log "$(proxy_display_name) proxy unavailable at $router:$PROXY_PORT"
     set_all_supported_proxies_off
+    notify_proxy_change "Proxy disabled" "$(proxy_display_name) endpoint is unavailable."
     return 0
   fi
 
   set_proxy_on "$router"
+  notify_proxy_change "Proxy enabled" "$(proxy_display_name) proxy is active for the current hotspot."
 }
 
 main() {

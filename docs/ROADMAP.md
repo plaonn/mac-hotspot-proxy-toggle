@@ -11,10 +11,12 @@
 
 - 실제 use case가 생기면 `PROXY_TYPE` 뒤에 PAC configuration 같은 추가 backend 도입.
 - Homebrew formula 같은 packaging option 검토.
+- 실제 상시 상태 표시와 수동 제어 요구가 생기면 별도 menu bar companion app 검토.
 
 ## 비목표
 
 - 휴대폰 쪽 proxy server 관리.
 - 구체 requirement가 생기기 전 authenticated SOCKS proxy 지원.
 - Persistent shell loop 실행.
+- Runtime script 안에 menu bar UI를 직접 포함.
 - Public repository file에 private operator task state 저장.

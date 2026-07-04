@@ -66,6 +66,7 @@ STRICT_SSID=0
 REQUIRE_PROXY_CHECK=1
 PROXY_CHECK_TIMEOUT=1
 DRY_RUN=0
+NOTIFY_ON_CHANGE=0
 ```
 
 `socks5` 또는 `http`가 아닌 `PROXY_TYPE` 값은 거부함.
@@ -112,6 +113,18 @@ macOS proxy setting을 켜기 전에 아래 응답을 요구함:
 - `http` backend는 Web Proxy와 Secure Web Proxy state를 함께 켜고 SOCKS firewall proxy state를 끔.
 - Hotspot이 아니거나 endpoint를 사용할 수 없으면 지원하는 backend 전체를 끔.
 - 현재 macOS proxy state가 이미 desired state와 일치하면 가능한 한 불필요한 `networksetup` write를 피함.
+- `NOTIFY_ON_CHANGE=1`이면 실제 macOS proxy setting 변경이 있었던 `run`에서 macOS notification을 한 번 표시함. 이미 desired state와 일치해 변경이 없거나 `DRY_RUN=1`이면 notification을 표시하지 않음.
+
+## Notification
+
+Notification은 runtime command의 부가 출력 경로임. `bin/hotspot-proxy-toggle run`은 `NOTIFY_ON_CHANGE=1`일 때 macOS `/usr/bin/osascript`의 `display notification`을 사용해 최종 proxy state를 표시함.
+
+Notification은 아래 원칙을 따름:
+
+- 최종 상태 기준으로 `run`당 최대 한 번 표시함.
+- 실제 proxy setting 변경이 있을 때만 표시함.
+- 라우터 IP, SSID, local path 같은 환경별 값을 message에 포함하지 않음.
+- `osascript` 실행에 실패해도 reconciliation 자체는 실패시키지 않고 log에만 남김.
 
 ## 설치
 

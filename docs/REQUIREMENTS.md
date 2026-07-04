@@ -60,3 +60,11 @@
 - 방지 실패: 새 proxy type을 추가하면서 SOCKS 전용 설정이나 검증을 잘못 재사용하는 일을 막음.
 - 명세: `PROXY_TYPE=socks5`는 SOCKS firewall proxy를 desired backend로 보고 Web Proxy와 Secure Web Proxy를 끔. `PROXY_TYPE=http`는 Web Proxy와 Secure Web Proxy를 desired backend로 보고 SOCKS firewall proxy를 끔. Hotspot이 아니거나 endpoint를 사용할 수 없으면 지원하는 backend 전체를 끔. 지원하지 않는 값은 supported list와 함께 거부함.
 - 테스트: `./tests/run.sh`는 `http` backend on decision, opposite backend off decision, unsupported `PROXY_TYPE` rejection을 검증함.
+
+## R7: 상태 변경 Notification
+
+- 요구사항: 사용자가 명시적으로 켠 경우, 실제 macOS proxy setting 변경이 발생한 `run`은 macOS notification으로 최종 상태를 안내함.
+- 근거: LaunchAgent 기반 자동 실행은 background에서 일어나므로 사용자는 proxy가 켜졌는지 꺼졌는지 즉시 알기 어려움.
+- 방지 실패: 사용자가 background reconciliation 결과를 몰라 불필요하게 status command를 반복 실행하거나, proxy 상태 변화를 뒤늦게 알아차리는 일을 줄임.
+- 명세: `NOTIFY_ON_CHANGE=1`이면 `run`당 최대 한 번 notification을 표시함. 변경이 없거나 `DRY_RUN=1`이면 표시하지 않음. Notification message에는 SSID, router IP, local path 같은 환경별 값을 포함하지 않음. Notification 실패는 reconciliation 실패로 취급하지 않음.
+- 테스트: `./tests/run.sh`는 notification이 opt-in이고, proxy enable 및 endpoint unavailable로 인한 disable 변경에서 최종 상태 notification이 생성되는지 검증함.

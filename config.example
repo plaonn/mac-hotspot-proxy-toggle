@@ -21,3 +21,6 @@ STRICT_SSID=0
 # socks5는 no-auth handshake를 확인하고, http는 HTTP 응답 형식을 확인함.
 REQUIRE_PROXY_CHECK=1
 PROXY_CHECK_TIMEOUT=1
+
+# 실제 proxy setting 변경이 있을 때 macOS notification을 표시함.
+NOTIFY_ON_CHANGE=0

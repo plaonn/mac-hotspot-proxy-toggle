@@ -18,6 +18,7 @@ FAIL_COUNT=0
 LAST_OUTPUT=""
 PROXY_ACTIONS=()
 PROXY_AVAILABLE=1
+NOTIFICATIONS=()
 
 record_pass() {
   PASS_COUNT=$((PASS_COUNT + 1))
@@ -64,10 +65,13 @@ reset_runtime_state() {
   REQUIRE_PROXY_CHECK="1"
   PROXY_CHECK_TIMEOUT="1"
   DRY_RUN="0"
+  NOTIFY_ON_CHANGE="0"
+  PROXY_STATE_CHANGED=0
   MOCK_DEFAULT_INTERFACE="en0"
   MOCK_IPCONFIG_SUMMARY=""
   PROXY_ACTIONS=()
   PROXY_AVAILABLE=1
+  NOTIFICATIONS=()
 }
 
 wifi_device_from_hardware_ports() {
@@ -96,18 +100,28 @@ proxy_endpoint_available() {
 
 set_socks5_proxy_off() {
   PROXY_ACTIONS+=("off:socks5")
+  mark_proxy_changed
 }
 
 set_http_proxy_off() {
   PROXY_ACTIONS+=("off:http")
+  mark_proxy_changed
 }
 
 set_socks5_proxy_on() {
   PROXY_ACTIONS+=("on:socks5:$1:$PROXY_PORT")
+  mark_proxy_changed
 }
 
 set_http_proxy_on() {
   PROXY_ACTIONS+=("on:http:$1:$PROXY_PORT")
+  mark_proxy_changed
+}
+
+notify_proxy_change() {
+  if [[ "$NOTIFY_ON_CHANGE" == "1" && "$DRY_RUN" != "1" && "$PROXY_STATE_CHANGED" == "1" ]]; then
+    NOTIFICATIONS+=("$1:$2")
+  fi
 }
 
 log() {
@@ -225,6 +239,41 @@ run_enables_http_web_proxy_backend() {
   [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 on:http:172.20.10.88:1080" ]]
 }
 
+notification_is_opt_in_for_proxy_enable() {
+  reset_runtime_state
+  HOTSPOT_SSIDS="My Phone"
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.99\nSSID : My Phone'
+  PROXY_AVAILABLE=1
+
+  do_run >/dev/null
+
+  [[ "${NOTIFICATIONS[*]-}" == "" ]]
+}
+
+run_notifies_when_proxy_enabled_and_opted_in() {
+  reset_runtime_state
+  NOTIFY_ON_CHANGE=1
+  HOTSPOT_SSIDS="My Phone"
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.99\nSSID : My Phone'
+  PROXY_AVAILABLE=1
+
+  do_run >/dev/null
+
+  [[ "${NOTIFICATIONS[*]-}" == "Proxy enabled:SOCKS5 proxy is active for the current hotspot." ]]
+}
+
+run_notifies_when_endpoint_unavailable_and_opted_in() {
+  reset_runtime_state
+  NOTIFY_ON_CHANGE=1
+  HOTSPOT_SSIDS="My Phone"
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.42\nSSID : My Phone'
+  PROXY_AVAILABLE=0
+
+  do_run >/dev/null
+
+  [[ "${NOTIFICATIONS[*]-}" == "Proxy disabled:SOCKS5 endpoint is unavailable." ]]
+}
+
 run_disables_all_supported_backends_when_not_hotspot() {
   reset_runtime_state
   HOTSPOT_SSIDS="Other Phone"
@@ -255,6 +304,9 @@ run_test "strict SSID disables DHCP marker fallback" dhcp_marker_fallback_respec
 run_test "run disables proxy when endpoint is unavailable" run_disables_proxy_when_endpoint_unavailable
 run_test "run enables proxy for available endpoint" run_enables_proxy_for_available_endpoint
 run_test "run enables HTTP web proxy backend" run_enables_http_web_proxy_backend
+run_test "notification is opt-in for proxy enable" notification_is_opt_in_for_proxy_enable
+run_test "run notifies when proxy enabled and opted in" run_notifies_when_proxy_enabled_and_opted_in
+run_test "run notifies when endpoint unavailable and opted in" run_notifies_when_endpoint_unavailable_and_opted_in
 run_test "run disables all supported backends when not hotspot" run_disables_all_supported_backends_when_not_hotspot
 run_test "unsupported proxy type is rejected" unsupported_proxy_type_is_rejected
 

@@ -36,10 +36,12 @@ helper는 아래 역할만 함:
 - SystemConfiguration dynamic store network change notification을 관찰함.
 - event burst를 debounce함.
 - child process로 기존 `hotspot-proxy-toggle run`을 호출함.
+- `run` 출력이 hotspot 상태를 나타내면 endpoint watchdog timer를 켬.
+- `run` 출력이 non-hotspot 상태를 나타내면 endpoint watchdog timer를 끔.
 - `--dry-run`이면 child command에 `DRY_RUN=1`을 전달함.
 - `--once`이면 event loop 없이 child command를 한 번 실행하고 종료함.
 
-helper는 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음.
+helper는 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음. Hotspot 여부도 별도로 재판정하지 않고 `hotspot-proxy-toggle run`의 status output을 사용함.
 
 설치 기본값은 event-driven helper LaunchAgent임. helper build 또는 helper LaunchAgent 설치가 실패하면 `install.sh`는 polling LaunchAgent로 fallback함. `HOTSPOT_TRIGGER_MODE=polling`을 명시하면 polling LaunchAgent를 강제로 설치함.
 
@@ -130,7 +132,7 @@ event helper 설치가 가능하면 기본값으로 아래 helper 파일과 help
 ~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.helper.plist
 ```
 
-helper LaunchAgent는 `hotspot-proxy-toggle-helper --command <installed-command>`를 실행함. helper는 시작 시 한 번 reconcile하고, 이후 SystemConfiguration network change event를 debounce해서 `hotspot-proxy-toggle run`을 호출함.
+helper LaunchAgent는 `hotspot-proxy-toggle-helper --command <installed-command>`를 실행함. helper는 시작 시 한 번 reconcile하고, 이후 SystemConfiguration network change event를 debounce해서 `hotspot-proxy-toggle run`을 호출함. Hotspot 상태에서는 endpoint watchdog이 낮은 빈도로 `hotspot-proxy-toggle run`을 다시 호출해 프록시 서버 on/off 변화를 보정함. Hotspot이 아니면 watchdog은 꺼짐.
 
 event helper tuning key:
 
@@ -138,7 +140,10 @@ event helper tuning key:
 HELPER_DEBOUNCE_SECONDS=1
 HELPER_MAX_RUNS=3
 HELPER_WINDOW_SECONDS=10
+HELPER_WATCHDOG_SECONDS=60
 ```
+
+`HELPER_WATCHDOG_SECONDS=0`이면 endpoint watchdog을 비활성화함.
 
 helper build 또는 helper LaunchAgent 설치가 실패하거나 `HOTSPOT_TRIGGER_MODE=polling`을 명시하면 아래 polling LaunchAgent를 설치하고 helper LaunchAgent는 제거함:
 

@@ -4,7 +4,7 @@
 
 ## 가까운 후보
 
-- Event-driven 기본 mode를 실제 macOS network transition에서 계속 검증하고, polling fallback diagnostics를 개선.
+- Event-driven 기본 mode와 hotspot-limited endpoint watchdog을 실제 macOS network transition에서 계속 검증하고, polling fallback diagnostics를 개선.
 - 사용할 수 없는 dependency에 대한 diagnostics 개선.
 
 ## 나중 후보

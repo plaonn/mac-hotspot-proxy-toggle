@@ -42,6 +42,14 @@ PROXY_PORT=1080 HOTSPOT_SSIDS='My Phone Hotspot' ./install.sh
 
 기본 설치는 네트워크 변경 event에 반응하는 helper LaunchAgent를 사용합니다. helper는 Swift로 빌드되며, macOS network change event를 debounce한 뒤 기존 `hotspot-proxy-toggle run`을 호출합니다. 프록시 판단과 설정 변경은 계속 single-shot runtime command가 담당합니다.
 
+핫스팟 상태에서는 helper가 endpoint watchdog을 켭니다. 기본값은 60초마다 한 번 `hotspot-proxy-toggle run`을 호출하는 방식이며, 휴대폰 쪽 프록시 서버만 중간에 켜지거나 꺼지는 경우를 보정합니다. 일반 Wi-Fi처럼 hotspot이 아닌 상태에서는 watchdog을 끕니다.
+
+```bash
+HELPER_WATCHDOG_SECONDS=120 PROXY_PORT=1080 ./install.sh
+```
+
+watchdog을 끄려면 `HELPER_WATCHDOG_SECONDS=0`으로 설치합니다.
+
 설치를 다시 실행하면 기존 helper/polling LaunchAgent를 먼저 멈추고 generated plist를 삭제한 뒤 설치 파일을 갱신합니다. 설정 파일과 로그는 유지합니다.
 
 event helper를 설치할 수 없으면 installer는 자동으로 polling LaunchAgent로 되돌아갑니다. polling fallback은 아래 파일을 사용합니다.

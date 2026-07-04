@@ -14,6 +14,7 @@ Polling wakeup을 줄이면서도 `hotspot-proxy-toggle run`의 single-shot reco
 - runtime command는 계속 한 번 reconcile하고 종료함.
 - helper는 proxy host 계산, hotspot 판정, macOS proxy write policy를 재구현하지 않음.
 - helper는 설치 기본 trigger로 동작함.
+- helper는 hotspot 상태에서만 endpoint watchdog을 켜서 proxy server on/off 변화를 저빈도로 보정함.
 - helper 설치가 실패해도 기존 polling LaunchAgent로 되돌릴 수 있어야 함.
 
 ## 배경
@@ -134,8 +135,10 @@ helper는 아래 invariant를 지켜야 함.
 - proxy setting을 직접 쓰지 않음.
 - config parsing을 중복 구현하지 않음.
 - `hotspot-proxy-toggle run`의 exit code와 stdout/stderr를 log에 남김.
+- `hotspot-proxy-toggle run`의 status output으로 endpoint watchdog on/off를 결정함.
 - event burst를 1회 reconcile로 합침.
 - helper 시작 시 한 번 reconcile함.
+- hotspot 상태에서만 endpoint watchdog을 실행함.
 - sleep/wake 직후 event 누락 가능성을 고려해 wake 후 한 번 reconcile할 수 있는지 검토함.
 
 ## Debounce 정책
@@ -146,12 +149,15 @@ helper는 아래 invariant를 지켜야 함.
 - 실행 중 event가 오면 pending flag만 기록
 - 실행이 끝난 뒤 pending flag가 있으면 1초 뒤 한 번 더 실행
 - 동일한 10초 window 안에서 최대 3회 실행 후 다음 event까지 대기
+- hotspot 상태에서는 60초마다 endpoint watchdog 실행
+- non-hotspot 상태에서는 endpoint watchdog 중지
 
 근거:
 
 - DHCP, route, SSID event는 한 번의 사용자 동작에서 여러 개가 이어질 수 있음.
 - 즉시 여러 번 `networksetup` write를 시도하면 불필요한 로그와 transient state가 늘어남.
 - 최종 decision은 runtime command가 현재 상태를 다시 inspect하므로 helper는 빠른 반응보다 안정적인 coalescing을 우선함.
+- 휴대폰 쪽 proxy server on/off는 macOS network event를 만들지 않으므로 hotspot 상태에 한정한 endpoint watchdog으로 보정함.
 
 ## 설치/마이그레이션 경로
 
@@ -200,7 +206,14 @@ helper는 아래 invariant를 지켜야 함.
 - `HOTSPOT_TRIGGER_MODE=polling ./install.sh`는 polling LaunchAgent를 강제로 설치함.
 - `uninstall.sh`는 helper LaunchAgent와 polling LaunchAgent를 모두 정리함.
 
-### Phase 4: 운영 검증
+### Phase 4: hotspot-limited endpoint watchdog
+
+- 완료됨.
+- helper는 `hotspot-proxy-toggle run` output이 hotspot 상태이면 endpoint watchdog을 시작함.
+- helper는 non-hotspot 상태이면 endpoint watchdog을 중지함.
+- 기본 watchdog interval은 60초이고, `HELPER_WATCHDOG_SECONDS=0`으로 비활성화할 수 있음.
+
+### Phase 5: 운영 검증
 
 아래 조건은 event-driven 기본 mode의 운영 신뢰도 개선 대상으로 유지함.
 
@@ -230,13 +243,14 @@ Manual macOS 검증:
 Acceptance:
 
 - event-driven mode에서도 `hotspot-proxy-toggle run`은 single-shot으로 유지됨.
+- hotspot 상태에서만 endpoint watchdog이 동작함.
 - helper 설치가 실패해도 polling 설치가 계속 동작함.
 - `HOTSPOT_TRIGGER_MODE=polling`으로 polling mode를 강제할 수 있음.
 - public docs에 default mode와 fallback이 명확히 구분됨.
 
 ## 현재 결론
 
-현재는 event-driven helper가 기본 설치 경로이고 polling LaunchAgent가 fallback임. 다음 구현 task를 만든다면 실제 macOS network transition 검증과 fallback diagnostics 개선이 적절함.
+현재는 event-driven helper가 기본 설치 경로이고 polling LaunchAgent가 fallback임. Hotspot 상태에서는 endpoint watchdog이 proxy server on/off 변화를 보정함. 다음 구현 task를 만든다면 실제 macOS network transition 검증과 fallback diagnostics 개선이 적절함.
 
 그 task의 경계:
 

@@ -15,6 +15,8 @@
     <string>__HELPER_MAX_RUNS__</string>
     <string>--window</string>
     <string>__HELPER_WINDOW_SECONDS__</string>
+    <string>--watchdog</string>
+    <string>__HELPER_WATCHDOG_SECONDS__</string>
   </array>
   <key>RunAtLoad</key>
   <true/>

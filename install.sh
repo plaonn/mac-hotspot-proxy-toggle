@@ -17,6 +17,7 @@ HOTSPOT_TRIGGER_MODE="${HOTSPOT_TRIGGER_MODE:-}"
 HELPER_DEBOUNCE_SECONDS="${HELPER_DEBOUNCE_SECONDS:-1}"
 HELPER_MAX_RUNS="${HELPER_MAX_RUNS:-3}"
 HELPER_WINDOW_SECONDS="${HELPER_WINDOW_SECONDS:-10}"
+HELPER_WATCHDOG_SECONDS="${HELPER_WATCHDOG_SECONDS:-60}"
 
 resolve_trigger_mode() {
   if [[ -z "$HOTSPOT_TRIGGER_MODE" ]]; then
@@ -85,7 +86,7 @@ write_polling_launch_agent() {
 
 write_helper_launch_agent() {
   local escaped_helper escaped_bin escaped_log_dir
-  local escaped_debounce escaped_max_runs escaped_window
+  local escaped_debounce escaped_max_runs escaped_window escaped_watchdog
 
   /bin/mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
 
@@ -95,6 +96,7 @@ write_helper_launch_agent() {
   escaped_debounce="$(escape_sed_replacement "$HELPER_DEBOUNCE_SECONDS")"
   escaped_max_runs="$(escape_sed_replacement "$HELPER_MAX_RUNS")"
   escaped_window="$(escape_sed_replacement "$HELPER_WINDOW_SECONDS")"
+  escaped_watchdog="$(escape_sed_replacement "$HELPER_WATCHDOG_SECONDS")"
 
   /usr/bin/sed \
     -e "s|__HELPER_BIN__|$escaped_helper|g" \
@@ -103,6 +105,7 @@ write_helper_launch_agent() {
     -e "s|__HELPER_DEBOUNCE_SECONDS__|$escaped_debounce|g" \
     -e "s|__HELPER_MAX_RUNS__|$escaped_max_runs|g" \
     -e "s|__HELPER_WINDOW_SECONDS__|$escaped_window|g" \
+    -e "s|__HELPER_WATCHDOG_SECONDS__|$escaped_watchdog|g" \
     "$SOURCE_DIR/launchd/$HELPER_LABEL.plist.in" >"$HELPER_PLIST_PATH"
 
   printf 'Wrote helper LaunchAgent: %s\n' "$HELPER_PLIST_PATH"

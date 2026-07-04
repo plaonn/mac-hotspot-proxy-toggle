@@ -7,6 +7,7 @@ struct HelperConfig {
     var debounceSeconds = 1.0
     var maxRuns = 3
     var windowSeconds = 10.0
+    var watchdogSeconds = 60.0
     var dryRun = false
     var once = false
 
@@ -41,6 +42,12 @@ struct HelperConfig {
                     throw UsageError("invalid value for --window")
                 }
                 config.windowSeconds = value
+            case "--watchdog":
+                index += 1
+                guard index < arguments.count, let value = Double(arguments[index]), value >= 0 else {
+                    throw UsageError("invalid value for --watchdog")
+                }
+                config.watchdogSeconds = value
             case "--dry-run":
                 config.dryRun = true
             case "--once":
@@ -67,6 +74,25 @@ struct UsageError: Error, CustomStringConvertible {
     }
 }
 
+struct CommandResult {
+    let status: Int32
+    let output: String
+
+    var isHotspot: Bool? {
+        for line in output.split(separator: "\n", omittingEmptySubsequences: false) {
+            if line.hasPrefix("status=hotspot ") || line == "status=hotspot" {
+                return true
+            }
+            if line.hasPrefix("status=not-hotspot ")
+                || line.hasPrefix("status=not-wifi ")
+                || line.hasPrefix("status=no-router ") {
+                return false
+            }
+        }
+        return nil
+    }
+}
+
 final class EventHelper {
     private let config: HelperConfig
     private let queue = DispatchQueue(label: "com.github.plaonn.hotspot-proxy-toggle.helper")
@@ -75,13 +101,14 @@ final class EventHelper {
     private var isRunning = false
     private var pendingAfterRun = false
     private var recentRuns: [Date] = []
+    private var watchdogTimer: DispatchSourceTimer?
 
     init(config: HelperConfig) {
         self.config = config
     }
 
     func runOnce() -> Int32 {
-        return runCommand(reason: "manual-once")
+        return runCommand(reason: "manual-once").status
     }
 
     func start() -> Never {
@@ -128,7 +155,7 @@ final class EventHelper {
         }
 
         store = dynamicStore
-        log("started helper; command=\(config.command) dry_run=\(config.dryRun)")
+        log("started helper; command=\(config.command) dry_run=\(config.dryRun) watchdog=\(config.watchdogSeconds)")
 
         queue.async {
             self.scheduleRun(reason: "startup")
@@ -176,12 +203,14 @@ final class EventHelper {
 
         recentRuns.append(now)
         isRunning = true
-        let status = runCommand(reason: reason)
+        let result = runCommand(reason: reason)
         isRunning = false
 
-        if status != 0 {
-            log("command exited with status=\(status)")
+        if result.status != 0 {
+            log("command exited with status=\(result.status)")
         }
+
+        updateWatchdog(from: result)
 
         if pendingAfterRun {
             pendingAfterRun = false
@@ -189,7 +218,7 @@ final class EventHelper {
         }
     }
 
-    private func runCommand(reason: String) -> Int32 {
+    private func runCommand(reason: String) -> CommandResult {
         log("running command; reason=\(reason)")
 
         let process = Process()
@@ -216,17 +245,63 @@ final class EventHelper {
             process.waitUntilExit()
         } catch {
             log("failed to start command: \(error)")
-            return 127
+            return CommandResult(status: 127, output: "")
         }
 
         let data = output.fileHandleForReading.readDataToEndOfFile()
-        if let text = String(data: data, encoding: .utf8), !text.isEmpty {
+        let text = String(data: data, encoding: .utf8) ?? ""
+        if !text.isEmpty {
             text.split(separator: "\n", omittingEmptySubsequences: false).forEach { line in
                 log("command: \(line)")
             }
         }
 
-        return process.terminationStatus
+        return CommandResult(status: process.terminationStatus, output: text)
+    }
+
+    private func updateWatchdog(from result: CommandResult) {
+        guard config.watchdogSeconds > 0 else {
+            stopWatchdog(reason: "disabled")
+            return
+        }
+
+        guard let isHotspot = result.isHotspot else {
+            return
+        }
+
+        if isHotspot {
+            startWatchdog()
+        } else {
+            stopWatchdog(reason: "not-hotspot")
+        }
+    }
+
+    private func startWatchdog() {
+        guard watchdogTimer == nil else {
+            return
+        }
+
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(
+            deadline: .now() + config.watchdogSeconds,
+            repeating: config.watchdogSeconds
+        )
+        timer.setEventHandler { [weak self] in
+            self?.scheduleRun(reason: "endpoint-watchdog")
+        }
+        watchdogTimer = timer
+        timer.resume()
+        log("started endpoint watchdog; interval=\(config.watchdogSeconds)")
+    }
+
+    private func stopWatchdog(reason: String) {
+        guard let timer = watchdogTimer else {
+            return
+        }
+
+        timer.cancel()
+        watchdogTimer = nil
+        log("stopped endpoint watchdog; reason=\(reason)")
     }
 
     private func log(_ message: String) {
@@ -247,6 +322,7 @@ func printUsage() {
           --debounce SECS    Debounce window before running. Default: 1.
           --max-runs N       Maximum runs in the throttle window. Default: 3.
           --window SECS      Throttle window. Default: 10.
+          --watchdog SECS    Endpoint check interval while hotspot is active. Default: 60. Set 0 to disable.
           --dry-run          Set DRY_RUN=1 for the child command.
           --once             Run the child command once and exit.
           -h, --help         Show this help.

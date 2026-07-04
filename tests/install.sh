@@ -15,7 +15,10 @@ PASS_COUNT=0
 FAIL_COUNT=0
 LAST_OUTPUT=""
 EVENTS=()
-EVENT_RESULT=0
+EVENT_HELPER_RESULT=0
+EVENT_PLIST_RESULT=0
+HELPER_LOAD_RESULT=0
+POLLING_LOAD_RESULT=0
 
 record_pass() {
   PASS_COUNT=$((PASS_COUNT + 1))
@@ -52,7 +55,10 @@ assert_contains() {
 reset_install_state() {
   HOTSPOT_TRIGGER_MODE=""
   EVENTS=()
-  EVENT_RESULT=0
+  EVENT_HELPER_RESULT=0
+  EVENT_PLIST_RESULT=0
+  HELPER_LOAD_RESULT=0
+  POLLING_LOAD_RESULT=0
 }
 
 install_files() {
@@ -67,13 +73,30 @@ write_config_if_missing() {
   EVENTS+=("write-config")
 }
 
-install_event_launch_agent() {
-  EVENTS+=("event")
-  return "$EVENT_RESULT"
+install_helper_file() {
+  EVENTS+=("event-helper")
+  return "$EVENT_HELPER_RESULT"
 }
 
-install_polling_launch_agent() {
-  EVENTS+=("polling")
+write_helper_launch_agent() {
+  EVENTS+=("event-plist")
+  return "$EVENT_PLIST_RESULT"
+}
+
+write_polling_launch_agent() {
+  EVENTS+=("polling-plist")
+}
+
+load_launch_agent() {
+  local label="$1"
+
+  if [[ "$label" == "$HELPER_LABEL" ]]; then
+    EVENTS+=("helper-load")
+    return "$HELPER_LOAD_RESULT"
+  fi
+
+  EVENTS+=("polling-load")
+  return "$POLLING_LOAD_RESULT"
 }
 
 default_install_uses_event_helper() {
@@ -84,20 +107,53 @@ default_install_uses_event_helper() {
   output="$(<"$TEST_TMP/default-event.out")"
 
   assert_contains "$output" "Trigger mode: event" &&
-    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event" ]]
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event-helper event-plist helper-load" ]]
 }
 
-event_install_falls_back_to_polling() {
+event_helper_build_failure_falls_back_to_polling() {
   local output
 
   reset_install_state
-  EVENT_RESULT=1
-  main >"$TEST_TMP/fallback.out" 2>&1
-  output="$(<"$TEST_TMP/fallback.out")"
+  EVENT_HELPER_RESULT=1
+  main >"$TEST_TMP/build-fallback.out" 2>&1
+  output="$(<"$TEST_TMP/build-fallback.out")"
 
+  assert_contains "$output" "Event helper diagnostic: failed to build or install helper binary" &&
+    assert_contains "$output" "Hint: install Xcode Command Line Tools or run scripts/build-helper.sh for details" &&
+    assert_contains "$output" "Event helper install failed; falling back to polling LaunchAgent" &&
+    assert_contains "$output" "Installed polling fallback; retry event mode after fixing the diagnostic above by running ./install.sh" &&
+    assert_contains "$output" "Trigger mode: polling" &&
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event-helper polling-plist polling-load" ]]
+}
+
+event_plist_failure_falls_back_to_polling() {
+  local output
+
+  reset_install_state
+  EVENT_PLIST_RESULT=1
+  main >"$TEST_TMP/plist-fallback.out" 2>&1
+  output="$(<"$TEST_TMP/plist-fallback.out")"
+
+  assert_contains "$output" "Event helper diagnostic: failed to write helper LaunchAgent plist:" &&
+    assert_contains "$output" "Event helper install failed; falling back to polling LaunchAgent" &&
+    assert_contains "$output" "Trigger mode: polling" &&
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event-helper event-plist polling-plist polling-load" ]]
+}
+
+event_launchctl_failure_falls_back_to_polling() {
+  local output
+
+  reset_install_state
+  HELPER_LOAD_RESULT=1
+  main >"$TEST_TMP/load-fallback.out" 2>&1
+  output="$(<"$TEST_TMP/load-fallback.out")"
+
+  assert_contains "$output" "Event helper diagnostic: failed to load helper LaunchAgent:" &&
+    assert_contains "$output" 'Hint: inspect with launchctl print "gui/' &&
+    assert_contains "$output" '/com.github.plaonn.hotspot-proxy-toggle.helper"' &&
   assert_contains "$output" "Event helper install failed; falling back to polling LaunchAgent" &&
     assert_contains "$output" "Trigger mode: polling" &&
-    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event polling" ]]
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event-helper event-plist helper-load polling-plist polling-load" ]]
 }
 
 explicit_polling_skips_event_helper() {
@@ -109,7 +165,7 @@ explicit_polling_skips_event_helper() {
   output="$(<"$TEST_TMP/explicit-polling.out")"
 
   assert_contains "$output" "Trigger mode: polling" &&
-    [[ "${EVENTS[*]-}" == "cleanup install-files write-config polling" ]]
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config polling-plist polling-load" ]]
 }
 
 unsupported_trigger_mode_is_rejected() {
@@ -130,7 +186,9 @@ unsupported_trigger_mode_is_rejected() {
 }
 
 run_test "default install uses event helper" default_install_uses_event_helper
-run_test "event install falls back to polling" event_install_falls_back_to_polling
+run_test "event helper build failure falls back to polling" event_helper_build_failure_falls_back_to_polling
+run_test "event plist failure falls back to polling" event_plist_failure_falls_back_to_polling
+run_test "event launchctl failure falls back to polling" event_launchctl_failure_falls_back_to_polling
 run_test "explicit polling skips event helper" explicit_polling_skips_event_helper
 run_test "unsupported trigger mode is rejected" unsupported_trigger_mode_is_rejected
 

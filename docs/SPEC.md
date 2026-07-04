@@ -145,7 +145,7 @@ HELPER_WATCHDOG_SECONDS=60
 
 `HELPER_WATCHDOG_SECONDS=0`이면 endpoint watchdog을 비활성화함.
 
-helper build 또는 helper LaunchAgent 설치가 실패하거나 `HOTSPOT_TRIGGER_MODE=polling`을 명시하면 아래 polling LaunchAgent를 설치하고 helper LaunchAgent는 제거함:
+helper build, helper LaunchAgent plist 생성, helper LaunchAgent load 중 하나가 실패하면 installer는 실패 단계와 확인 힌트를 출력한 뒤 아래 polling LaunchAgent를 설치함. `HOTSPOT_TRIGGER_MODE=polling`을 명시한 경우에도 polling LaunchAgent를 설치하고 helper LaunchAgent는 제거함:
 
 ```text
 ~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.plist

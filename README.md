@@ -52,7 +52,7 @@ watchdog을 끄려면 `HELPER_WATCHDOG_SECONDS=0`으로 설치합니다.
 
 설치를 다시 실행하면 기존 helper/polling LaunchAgent를 먼저 멈추고 generated plist를 삭제한 뒤 설치 파일을 갱신합니다. 설정 파일과 로그는 유지합니다.
 
-event helper를 설치할 수 없으면 installer는 자동으로 polling LaunchAgent로 되돌아갑니다. polling fallback은 아래 파일을 사용합니다.
+event helper를 설치할 수 없으면 installer는 실패한 단계와 확인 힌트를 출력한 뒤 polling LaunchAgent로 되돌아갑니다. polling fallback은 아래 파일을 사용합니다.
 
 ```text
 ~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.plist

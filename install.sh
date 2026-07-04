@@ -158,9 +158,22 @@ load_launch_agent() {
 }
 
 install_event_launch_agent() {
-  install_helper_file || return 1
-  write_helper_launch_agent || return 1
-  load_launch_agent "$HELPER_LABEL" "$HELPER_PLIST_PATH" 0 || return 1
+  if ! install_helper_file; then
+    printf 'Event helper diagnostic: failed to build or install helper binary\n' >&2
+    printf 'Hint: install Xcode Command Line Tools or run scripts/build-helper.sh for details\n' >&2
+    return 1
+  fi
+
+  if ! write_helper_launch_agent; then
+    printf 'Event helper diagnostic: failed to write helper LaunchAgent plist: %s\n' "$HELPER_PLIST_PATH" >&2
+    return 1
+  fi
+
+  if ! load_launch_agent "$HELPER_LABEL" "$HELPER_PLIST_PATH" 0; then
+    printf 'Event helper diagnostic: failed to load helper LaunchAgent: %s\n' "$HELPER_LABEL" >&2
+    printf 'Hint: inspect with launchctl print "gui/%s/%s"\n' "$(/usr/bin/id -u)" "$HELPER_LABEL" >&2
+    return 1
+  fi
 }
 
 install_polling_launch_agent() {
@@ -179,6 +192,7 @@ main() {
       printf 'Event helper install failed; falling back to polling LaunchAgent\n' >&2
       HOTSPOT_TRIGGER_MODE="polling"
       install_polling_launch_agent || return
+      printf 'Installed polling fallback; retry event mode after fixing the diagnostic above by running ./install.sh\n' >&2
     fi
   else
     install_polling_launch_agent || return

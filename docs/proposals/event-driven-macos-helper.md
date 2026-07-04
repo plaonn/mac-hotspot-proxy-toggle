@@ -250,7 +250,7 @@ Acceptance:
 
 ## 현재 결론
 
-현재는 event-driven helper가 기본 설치 경로이고 polling LaunchAgent가 fallback임. Hotspot 상태에서는 endpoint watchdog이 proxy server on/off 변화를 보정함. 다음 구현 task를 만든다면 실제 macOS network transition 검증과 fallback diagnostics 개선이 적절함.
+현재는 event-driven helper가 기본 설치 경로이고 polling LaunchAgent가 fallback임. Hotspot 상태에서는 endpoint watchdog이 proxy server on/off 변화를 보정함. Event helper 설치 실패 시에는 단계별 diagnostic을 출력함. 다음 구현 task를 만든다면 실제 macOS network transition 검증이 적절함.
 
 그 task의 경계:
 

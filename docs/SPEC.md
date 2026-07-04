@@ -106,8 +106,9 @@ macOS proxy setting을 켜기 전에 아래 응답을 요구함:
 - Wi-Fi가 아니거나, router가 없거나, hotspot이 아니면 설정된 network service의 backend proxy state를 끔.
 - Hotspot candidate지만 proxy endpoint를 사용할 수 없으면 backend proxy state를 끔.
 - Hotspot candidate이고 endpoint를 사용할 수 있으면 backend별 host를 현재 router IP로, port를 `PROXY_PORT`로 설정하고 proxy state를 켬.
-- `socks5` backend는 SOCKS firewall proxy state를 켬.
-- `http` backend는 Web Proxy와 Secure Web Proxy state를 함께 켬.
+- `socks5` backend는 SOCKS firewall proxy state를 켜고 Web Proxy와 Secure Web Proxy state를 끔.
+- `http` backend는 Web Proxy와 Secure Web Proxy state를 함께 켜고 SOCKS firewall proxy state를 끔.
+- Hotspot이 아니거나 endpoint를 사용할 수 없으면 지원하는 backend 전체를 끔.
 - 현재 macOS proxy state가 이미 desired state와 일치하면 가능한 한 불필요한 `networksetup` write를 피함.
 
 ## 설치

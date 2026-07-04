@@ -94,12 +94,20 @@ proxy_endpoint_available() {
   [[ "$PROXY_AVAILABLE" == "1" ]]
 }
 
-set_proxy_on() {
-  PROXY_ACTIONS+=("on:$PROXY_TYPE:$1:$PROXY_PORT")
+set_socks5_proxy_off() {
+  PROXY_ACTIONS+=("off:socks5")
 }
 
-set_proxy_off() {
-  PROXY_ACTIONS+=("off")
+set_http_proxy_off() {
+  PROXY_ACTIONS+=("off:http")
+}
+
+set_socks5_proxy_on() {
+  PROXY_ACTIONS+=("on:socks5:$1:$PROXY_PORT")
+}
+
+set_http_proxy_on() {
+  PROXY_ACTIONS+=("on:http:$1:$PROXY_PORT")
 }
 
 log() {
@@ -191,7 +199,7 @@ run_disables_proxy_when_endpoint_unavailable() {
 
   assert_contains "$output" "status=hotspot" &&
     assert_contains "$output" "status=proxy-unavailable proxy_type=socks5 router=172.20.10.42 port=1080 action=off" &&
-    [[ "${PROXY_ACTIONS[*]-}" == "off" ]]
+    [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 off:http" ]]
 }
 
 run_enables_proxy_for_available_endpoint() {
@@ -202,7 +210,7 @@ run_enables_proxy_for_available_endpoint() {
 
   do_run >/dev/null
 
-  [[ "${PROXY_ACTIONS[*]-}" == "on:socks5:172.20.10.99:1080" ]]
+  [[ "${PROXY_ACTIONS[*]-}" == "off:http on:socks5:172.20.10.99:1080" ]]
 }
 
 run_enables_http_web_proxy_backend() {
@@ -214,7 +222,17 @@ run_enables_http_web_proxy_backend() {
 
   do_run >/dev/null
 
-  [[ "${PROXY_ACTIONS[*]-}" == "on:http:172.20.10.88:1080" ]]
+  [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 on:http:172.20.10.88:1080" ]]
+}
+
+run_disables_all_supported_backends_when_not_hotspot() {
+  reset_runtime_state
+  HOTSPOT_SSIDS="Other Phone"
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.77\nSSID : My Phone'
+
+  do_run >/dev/null
+
+  [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 off:http" ]]
 }
 
 unsupported_proxy_type_is_rejected() {
@@ -237,6 +255,7 @@ run_test "strict SSID disables DHCP marker fallback" dhcp_marker_fallback_respec
 run_test "run disables proxy when endpoint is unavailable" run_disables_proxy_when_endpoint_unavailable
 run_test "run enables proxy for available endpoint" run_enables_proxy_for_available_endpoint
 run_test "run enables HTTP web proxy backend" run_enables_http_web_proxy_backend
+run_test "run disables all supported backends when not hotspot" run_disables_all_supported_backends_when_not_hotspot
 run_test "unsupported proxy type is rejected" unsupported_proxy_type_is_rejected
 
 printf '\n%s passed, %s failed\n' "$PASS_COUNT" "$FAIL_COUNT"

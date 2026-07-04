@@ -321,8 +321,14 @@ set_proxy_on() {
   local router="$1"
 
   case "$PROXY_TYPE" in
-    socks5) set_socks5_proxy_on "$router" ;;
-    http) set_http_proxy_on "$router" ;;
+    socks5)
+      set_http_proxy_off
+      set_socks5_proxy_on "$router"
+      ;;
+    http)
+      set_socks5_proxy_off
+      set_http_proxy_on "$router"
+      ;;
   esac
 }
 
@@ -368,6 +374,11 @@ set_proxy_off() {
     socks5) set_socks5_proxy_off ;;
     http) set_http_proxy_off ;;
   esac
+}
+
+set_all_supported_proxies_off() {
+  set_socks5_proxy_off
+  set_http_proxy_off
 }
 
 evaluate() {
@@ -469,7 +480,7 @@ do_run() {
   printf '%s\n' "$result"
 
   if [[ "$rc" != "0" ]]; then
-    set_proxy_off
+    set_all_supported_proxies_off
     return 0
   fi
 
@@ -477,7 +488,7 @@ do_run() {
   if [[ "$REQUIRE_PROXY_CHECK" == "1" ]] && ! proxy_endpoint_available "$router" "$PROXY_PORT"; then
     printf 'status=proxy-unavailable proxy_type=%s router=%s port=%s action=off\n' "$PROXY_TYPE" "$router" "$PROXY_PORT"
     log "$(proxy_display_name) proxy unavailable at $router:$PROXY_PORT"
-    set_proxy_off
+    set_all_supported_proxies_off
     return 0
   fi
 

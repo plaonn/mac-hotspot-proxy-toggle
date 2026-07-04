@@ -91,6 +91,8 @@ PROXY_CHECK_TIMEOUT=1
 - `PROXY_TYPE=socks5`: macOS SOCKS firewall proxy를 설정합니다.
 - `PROXY_TYPE=http`: macOS Web Proxy와 Secure Web Proxy를 함께 설정합니다.
 
+선택한 backend만 desired state로 취급합니다. `socks5`를 켜면 Web/Secure Web Proxy를 끄고, `http`를 켜면 SOCKS firewall proxy를 끕니다.
+
 `REQUIRE_PROXY_CHECK=1`이면 핫스팟 라우터가 `PROXY_PORT`에서 SOCKS5 no-auth greeting에 응답할 때만 macOS 프록시 설정을 켭니다.
 `PROXY_TYPE=http`에서는 같은 설정이 `router:PROXY_PORT`가 HTTP proxy처럼 응답하는지 확인합니다.
 

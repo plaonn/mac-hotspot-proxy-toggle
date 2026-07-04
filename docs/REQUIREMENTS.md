@@ -58,5 +58,5 @@
 - 요구사항: 지원하는 proxy backend는 `PROXY_TYPE`으로 명시하고, backend별 macOS proxy setting을 서로 섞지 않음.
 - 근거: SOCKS5, HTTP Web Proxy, PAC은 macOS `networksetup` command와 endpoint semantics가 다름.
 - 방지 실패: 새 proxy type을 추가하면서 SOCKS 전용 설정이나 검증을 잘못 재사용하는 일을 막음.
-- 명세: `PROXY_TYPE=socks5`는 SOCKS firewall proxy만 reconcile함. `PROXY_TYPE=http`는 Web Proxy와 Secure Web Proxy를 같은 router/port로 함께 reconcile함. 지원하지 않는 값은 supported list와 함께 거부함.
-- 테스트: `./tests/run.sh`는 `http` backend on decision과 unsupported `PROXY_TYPE` rejection을 검증함.
+- 명세: `PROXY_TYPE=socks5`는 SOCKS firewall proxy를 desired backend로 보고 Web Proxy와 Secure Web Proxy를 끔. `PROXY_TYPE=http`는 Web Proxy와 Secure Web Proxy를 desired backend로 보고 SOCKS firewall proxy를 끔. Hotspot이 아니거나 endpoint를 사용할 수 없으면 지원하는 backend 전체를 끔. 지원하지 않는 값은 supported list와 함께 거부함.
+- 테스트: `./tests/run.sh`는 `http` backend on decision, opposite backend off decision, unsupported `PROXY_TYPE` rejection을 검증함.

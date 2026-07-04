@@ -8,7 +8,7 @@
 
 ## 나중 후보
 
-- Polling 대신 network state change 시 `hotspot-proxy-toggle run`을 trigger하는 event-driven macOS helper 추가.
+- Event-driven helper prototype을 실제 macOS network transition에서 검증하고, 명시적 opt-in 설치 경로를 설계.
 - 실제 use case가 생기면 `PROXY_TYPE` 뒤에 HTTP proxy, PAC configuration 같은 추가 backend 도입.
 - Homebrew formula 같은 packaging option 검토.
 

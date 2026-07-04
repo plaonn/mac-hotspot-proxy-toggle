@@ -2,7 +2,7 @@
 
 ## 상태
 
-제안 초안임. 이 문서는 구현을 승인하지 않으며, 현재 설치 기본값도 바꾸지 않음.
+제안은 승인됐고, `Sources/hotspot-proxy-toggle-helper/main.swift`에 prototype helper를 추가함. 현재 설치 기본값은 바꾸지 않음.
 
 ## Root goal
 
@@ -166,6 +166,21 @@ helper는 아래 invariant를 지켜야 함.
 - installer 기본 동작은 바꾸지 않음.
 - 수동 실행 또는 별도 실험 install flag로만 helper plist를 생성함.
 - dry-run 또는 log-only mode로 event coalescing을 검증함.
+
+현재 prototype:
+
+- `SCDynamicStoreSetNotificationKeys`로 network dynamic store 변화 key pattern을 관찰함.
+- event burst를 debounce하고, child process로 `hotspot-proxy-toggle run`을 호출함.
+- `--dry-run`을 주면 child command에 `DRY_RUN=1`을 전달함.
+- `--once`를 주면 event loop 없이 child command를 한 번 실행하고 종료함.
+- 설치 스크립트와 LaunchAgent 기본값에는 연결되어 있지 않음.
+
+수동 빌드:
+
+```bash
+./scripts/build-helper.sh
+.build/hotspot-proxy-toggle-helper --command ./bin/hotspot-proxy-toggle --dry-run --once
+```
 
 ### Phase 2: opt-in install option
 

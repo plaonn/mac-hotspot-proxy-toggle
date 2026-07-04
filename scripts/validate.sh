@@ -11,6 +11,7 @@ scripts=(
   "uninstall.sh"
   "tests/run.sh"
   "scripts/validate.sh"
+  "scripts/build-helper.sh"
 )
 
 printf '==> bash syntax\n'
@@ -25,4 +26,12 @@ if command -v shellcheck >/dev/null 2>&1; then
 else
   printf '\n==> shellcheck\n'
   printf 'skipped: shellcheck not found\n'
+fi
+
+if command -v swiftc >/dev/null 2>&1; then
+  printf '\n==> helper build\n'
+  ./scripts/build-helper.sh >/dev/null
+else
+  printf '\n==> helper build\n'
+  printf 'skipped: swiftc not found\n'
 fi

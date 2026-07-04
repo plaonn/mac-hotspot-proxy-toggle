@@ -129,3 +129,10 @@ brew install shellcheck
 ```bash
 ./tests/run.sh
 ```
+
+Event-driven helper prototype은 기본 설치 경로에 포함되지 않습니다. 직접 빌드해서 dry-run으로 한 번 실행해 볼 수 있습니다.
+
+```bash
+./scripts/build-helper.sh
+.build/hotspot-proxy-toggle-helper --command ./bin/hotspot-proxy-toggle --dry-run --once
+```

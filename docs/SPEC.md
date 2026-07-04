@@ -24,6 +24,22 @@
 
 Runtime command는 파일 설치, LaunchAgent 생성, persistent loop 실행을 하지 않음.
 
+## Event-driven helper prototype
+
+`Sources/hotspot-proxy-toggle-helper/main.swift`에는 event-driven helper prototype이 있음.
+
+현재 helper prototype은 아래 역할만 함:
+
+- SystemConfiguration dynamic store network change notification을 관찰함.
+- event burst를 debounce함.
+- child process로 기존 `hotspot-proxy-toggle run`을 호출함.
+- `--dry-run`이면 child command에 `DRY_RUN=1`을 전달함.
+- `--once`이면 event loop 없이 child command를 한 번 실행하고 종료함.
+
+helper prototype은 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음.
+
+현재 설치 기본값은 여전히 polling LaunchAgent임. `install.sh`는 helper prototype을 설치하거나 helper LaunchAgent를 생성하지 않음.
+
 ## 설정
 
 기본 config path:

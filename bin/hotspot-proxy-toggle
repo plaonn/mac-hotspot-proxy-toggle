@@ -369,9 +369,7 @@ inactive_notification_body() {
   locale="$(resolve_notification_locale)"
   if [[ "$locale" == "ko" ]]; then
     case "$result" in
-      status=not-hotspot*) printf '현재 Wi-Fi가 설정된 핫스팟 조건과 맞지 않습니다.' ;;
-      status=not-wifi*) printf 'Wi-Fi가 현재 기본 네트워크 경로가 아닙니다.' ;;
-      status=no-router*) printf '현재 Wi-Fi에서 라우터 주소를 찾지 못했습니다.' ;;
+      status=not-hotspot*) printf '현재 Wi-Fi는 설정한 핫스팟이 아닙니다.' ;;
       *) printf '핫스팟이 활성 상태가 아닙니다.' ;;
     esac
     return 0
@@ -379,8 +377,6 @@ inactive_notification_body() {
 
   case "$result" in
     status=not-hotspot*) printf 'Current Wi-Fi is not a configured hotspot.' ;;
-    status=not-wifi*) printf 'Wi-Fi is not the active network route.' ;;
-    status=no-router*) printf 'Current Wi-Fi has no router address.' ;;
     *) printf 'Hotspot is not active.' ;;
   esac
 }
@@ -415,6 +411,16 @@ notify_reconcile_change() {
 
   if notification_state_changed "$state_key"; then
     send_macos_notification "$subtitle" "$body"
+  fi
+
+  write_notification_state "$state_key"
+}
+
+record_reconcile_state() {
+  local state_key="$1"
+
+  if [[ "$NOTIFY_ON_CHANGE" != "1" || "$DRY_RUN" == "1" ]]; then
+    return 0
   fi
 
   write_notification_state "$state_key"
@@ -659,7 +665,14 @@ do_run() {
 
   if [[ "$rc" != "0" ]]; then
     set_all_supported_proxies_off
-    notify_reconcile_change "off:$PROXY_TYPE:$result" "$(notification_title idle)" "$(inactive_notification_body "$result")"
+    case "$result" in
+      status=not-hotspot*)
+        notify_reconcile_change "off:$PROXY_TYPE:$result" "$(notification_title idle)" "$(inactive_notification_body "$result")"
+        ;;
+      *)
+        record_reconcile_state "off:$PROXY_TYPE:$result"
+        ;;
+    esac
     return 0
   fi
 

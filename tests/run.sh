@@ -296,6 +296,45 @@ run_notifies_when_ssid_context_changes_and_proxy_already_off() {
     [[ "$(<"$STATE_PATH")" == "off:socks5:status=not-hotspot wifi_device=en0 router=172.20.10.77 ssid=Office reason=no-match" ]]
 }
 
+run_uses_korean_idle_notification_copy() {
+  reset_runtime_state
+  NOTIFY_ON_CHANGE=1
+  NOTIFICATION_LOCALE=ko
+  MOCK_PROXY_CHANGE_ON_OFF=0
+  HOTSPOT_SSIDS="Phone"
+  printf '%s\n' 'off:socks5:status=not-hotspot wifi_device=en0 router=172.20.10.77 ssid=Coffee reason=no-match' >"$STATE_PATH"
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.77\nSSID : Office'
+
+  do_run >/dev/null
+
+  [[ "${NOTIFICATIONS[*]-}" == "ℹ️ 핫스팟 프록시 대기:현재 Wi-Fi는 설정한 핫스팟이 아닙니다." ]]
+}
+
+run_records_not_wifi_without_notification() {
+  reset_runtime_state
+  NOTIFY_ON_CHANGE=1
+  MOCK_PROXY_CHANGE_ON_OFF=0
+  MOCK_DEFAULT_INTERFACE="en9"
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.77\nSSID : Office'
+
+  do_run >/dev/null
+
+  [[ "${NOTIFICATIONS[*]-}" == "" ]] &&
+    [[ "$(<"$STATE_PATH")" == "off:socks5:status=not-wifi wifi_device=en0 default_interface=en9" ]]
+}
+
+run_records_no_router_without_notification() {
+  reset_runtime_state
+  NOTIFY_ON_CHANGE=1
+  MOCK_PROXY_CHANGE_ON_OFF=0
+  MOCK_IPCONFIG_SUMMARY=$'SSID : Office'
+
+  do_run >/dev/null
+
+  [[ "${NOTIFICATIONS[*]-}" == "" ]] &&
+    [[ "$(<"$STATE_PATH")" == "off:socks5:status=no-router wifi_device=en0 ssid=Office" ]]
+}
+
 run_uses_korean_notification_locale() {
   reset_runtime_state
   NOTIFY_ON_CHANGE=1
@@ -370,6 +409,9 @@ run_test "run notifies when proxy enabled and opted in" run_notifies_when_proxy_
 run_test "run notifies when endpoint unavailable and opted in" run_notifies_when_endpoint_unavailable_and_opted_in
 run_test "run notifies when SSID context changes and proxy already off" run_notifies_when_ssid_context_changes_and_proxy_already_off
 run_test "run does not repeat context notification without change" run_does_not_repeat_context_notification_without_change
+run_test "run uses Korean idle notification copy" run_uses_korean_idle_notification_copy
+run_test "run records not-Wi-Fi without notification" run_records_not_wifi_without_notification
+run_test "run records no-router without notification" run_records_no_router_without_notification
 run_test "run uses Korean notification locale" run_uses_korean_notification_locale
 run_test "run disables all supported backends when not hotspot" run_disables_all_supported_backends_when_not_hotspot
 run_test "unsupported proxy type is rejected" unsupported_proxy_type_is_rejected

@@ -130,10 +130,11 @@ Notification은 아래 원칙을 따름:
 
 - 최종 상태 기준으로 `run`당 최대 한 번 표시함.
 - 실제 proxy setting 변경이 있으면 표시함.
-- proxy setting 변경이 없어도 SSID, default route, hotspot match, endpoint availability 같은 reconciliation state가 이전 `run`과 달라지면 표시함.
+- proxy setting 변경이 없어도 active Wi-Fi가 설정한 hotspot이 아니거나 endpoint availability가 이전 `run`과 달라지면 표시함.
+- default route가 Wi-Fi가 아니거나 Wi-Fi router가 아직 확인되지 않은 상태에서는 notification을 표시하지 않고 state file만 갱신함.
 - 중복 알림을 막기 위해 마지막 notification state를 local state file에 저장함. `HOTSPOT_PROXY_STATE`로 경로를 override할 수 있음.
 - `NOTIFICATION_LOCALE=auto`이면 macOS 언어 설정을 읽어 한국어 환경에서는 한국어 문구를 사용하고, 그 외에는 영어 문구를 사용함. `en` 또는 `ko`로 고정할 수 있음.
-- Notification title은 3개 상태로 나뉨: hotspot proxy active는 `✅ Hotspot Proxy On`, hotspot은 맞지만 endpoint가 unavailable이면 `⚠️ Hotspot Proxy Unavailable`, hotspot 조건이 아니면 `ℹ️ Hotspot Proxy Idle`. 한국어 locale에서는 각각 `✅ 핫스팟 프록시 켜짐`, `⚠️ 핫스팟 프록시 사용 불가`, `ℹ️ 핫스팟 프록시 대기`를 사용함.
+- Notification title은 3개 상태로 나뉨: hotspot proxy active는 `✅ Hotspot Proxy On`, hotspot은 맞지만 endpoint가 unavailable이면 `⚠️ Hotspot Proxy Unavailable`, active Wi-Fi가 설정한 hotspot이 아니면 `ℹ️ Hotspot Proxy Idle`. 한국어 locale에서는 각각 `✅ 핫스팟 프록시 켜짐`, `⚠️ 핫스팟 프록시 사용 불가`, `ℹ️ 핫스팟 프록시 대기`를 사용함.
 - 라우터 IP, SSID, local path 같은 환경별 값을 message에 포함하지 않음.
 - `osascript` 실행에 실패해도 reconciliation 자체는 실패시키지 않고 log에만 남김.
 

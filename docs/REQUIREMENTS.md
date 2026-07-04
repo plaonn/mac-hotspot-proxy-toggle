@@ -64,7 +64,7 @@
 ## R7: 상태 변경 Notification
 
 - 요구사항: 사용자가 명시적으로 켠 경우, `run`은 실제 macOS proxy setting 변경이나 최종 reconciliation state 변경을 macOS notification으로 안내함.
-- 근거: LaunchAgent 기반 자동 실행은 background에서 일어나므로 사용자는 proxy가 켜졌는지, 꺼졌는지, 또는 현재 Wi-Fi/SSID가 조건과 맞지 않아 동작하지 않는지 즉시 알기 어려움.
-- 방지 실패: SSID나 network context가 바뀌었지만 proxy setting은 이미 꺼져 있어 write가 발생하지 않은 경우를 사용자가 놓치는 일을 막음.
-- 명세: `NOTIFY_ON_CHANGE=1`이면 `run`당 최대 한 번 notification을 표시함. 실제 proxy setting 변경이 있거나, SSID/default route/hotspot match/endpoint availability를 반영한 state key가 이전 `run`과 달라졌을 때 표시함. 같은 state가 유지되거나 `DRY_RUN=1`이면 표시하지 않음. Notification은 hotspot proxy active, hotspot-but-proxy-unavailable, idle/non-hotspot을 서로 다른 title과 emoji로 구분함. `NOTIFICATION_LOCALE=auto`는 macOS 언어 설정을 읽고, `en` 또는 `ko` override를 지원함. Notification message에는 SSID, router IP, local path 같은 환경별 값을 포함하지 않음. Notification 실패는 reconciliation 실패로 취급하지 않음.
-- 테스트: `./tests/run.sh`는 notification이 opt-in이고, proxy enable, endpoint unavailable, proxy write 없는 SSID context 변경에서 최종 상태 notification이 생성되는지와 한국어 locale override를 검증함.
+- 근거: LaunchAgent 기반 자동 실행은 background에서 일어나므로 사용자는 proxy가 켜졌는지, 꺼졌는지, 또는 현재 Wi-Fi가 설정한 hotspot이 아니라 동작하지 않는지 즉시 알기 어려움.
+- 방지 실패: active Wi-Fi가 바뀌었지만 proxy setting은 이미 꺼져 있어 write가 발생하지 않은 경우를 사용자가 놓치는 일을 막음. 반면 Wi-Fi가 active route가 아니거나 router가 아직 없는 transient 상태의 불필요한 알림은 피함.
+- 명세: `NOTIFY_ON_CHANGE=1`이면 `run`당 최대 한 번 notification을 표시함. 실제 proxy setting 변경이 있거나, hotspot match/endpoint availability를 반영한 state key가 이전 `run`과 달라졌을 때 표시함. default route가 Wi-Fi가 아니거나 Wi-Fi router가 아직 확인되지 않은 상태에서는 notification을 표시하지 않고 state file만 갱신함. 같은 state가 유지되거나 `DRY_RUN=1`이면 표시하지 않음. Notification은 hotspot proxy active, hotspot-but-proxy-unavailable, active-Wi-Fi-but-not-configured-hotspot을 서로 다른 title과 emoji로 구분함. `NOTIFICATION_LOCALE=auto`는 macOS 언어 설정을 읽고, `en` 또는 `ko` override를 지원함. Notification message에는 SSID, router IP, local path 같은 환경별 값을 포함하지 않음. Notification 실패는 reconciliation 실패로 취급하지 않음.
+- 테스트: `./tests/run.sh`는 notification이 opt-in이고, proxy enable, endpoint unavailable, proxy write 없는 SSID context 변경에서 최종 상태 notification이 생성되는지, not-Wi-Fi/no-router에서는 notification 없이 state만 기록되는지, 한국어 locale override를 검증함.

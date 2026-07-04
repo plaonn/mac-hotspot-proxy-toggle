@@ -1,0 +1,340 @@
+#!/bin/bash
+set -euo pipefail
+
+CONFIG_PATH="${HOTSPOT_PROXY_CONFIG:-$HOME/.config/hotspot-proxy-toggle.conf}"
+LOG_PATH="${HOTSPOT_PROXY_LOG:-$HOME/Library/Logs/hotspot-proxy-toggle.log}"
+
+NETWORK_SERVICE="${NETWORK_SERVICE:-Wi-Fi}"
+WIFI_DEVICE="${WIFI_DEVICE:-}"
+HOTSPOT_SSIDS="${HOTSPOT_SSIDS:-}"
+HOTSPOT_DHCP_MARKERS="${HOTSPOT_DHCP_MARKERS:-ANDROID_METERED}"
+PROXY_TYPE="${PROXY_TYPE:-socks5}"
+PROXY_PORT="${PROXY_PORT:-}"
+STRICT_SSID="${STRICT_SSID:-0}"
+REQUIRE_PROXY_CHECK="${REQUIRE_PROXY_CHECK:-1}"
+PROXY_CHECK_TIMEOUT="${PROXY_CHECK_TIMEOUT:-1}"
+DRY_RUN="${DRY_RUN:-0}"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  hotspot-proxy-toggle run
+  hotspot-proxy-toggle status
+  hotspot-proxy-toggle evaluate
+
+Config:
+  ~/.config/hotspot-proxy-toggle.conf
+
+Required:
+  PROXY_TYPE=socks5
+  PROXY_PORT=1080
+
+Optional:
+  HOTSPOT_SSIDS='My Phone,Other Phone'
+  HOTSPOT_DHCP_MARKERS='ANDROID_METERED'
+  STRICT_SSID=1
+  REQUIRE_PROXY_CHECK=1
+  PROXY_CHECK_TIMEOUT=1
+  NETWORK_SERVICE='Wi-Fi'
+  WIFI_DEVICE='en0'
+  DRY_RUN=1
+EOF
+}
+
+log() {
+  /bin/mkdir -p "$(/usr/bin/dirname "$LOG_PATH")"
+  printf '%s %s\n' "$(/bin/date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$LOG_PATH"
+}
+
+load_config() {
+  if [[ -f "$CONFIG_PATH" ]]; then
+    # shellcheck disable=SC1090
+    source "$CONFIG_PATH"
+  fi
+
+  NETWORK_SERVICE="${NETWORK_SERVICE:-Wi-Fi}"
+  WIFI_DEVICE="${WIFI_DEVICE:-}"
+  HOTSPOT_SSIDS="${HOTSPOT_SSIDS:-}"
+  HOTSPOT_DHCP_MARKERS="${HOTSPOT_DHCP_MARKERS:-ANDROID_METERED}"
+  PROXY_TYPE="${PROXY_TYPE:-socks5}"
+  PROXY_PORT="${PROXY_PORT:-}"
+  STRICT_SSID="${STRICT_SSID:-0}"
+  REQUIRE_PROXY_CHECK="${REQUIRE_PROXY_CHECK:-1}"
+  PROXY_CHECK_TIMEOUT="${PROXY_CHECK_TIMEOUT:-1}"
+  DRY_RUN="${DRY_RUN:-0}"
+}
+
+validate_config() {
+  if [[ "$PROXY_TYPE" != "socks5" ]]; then
+    printf 'unsupported PROXY_TYPE: %s\n' "$PROXY_TYPE" >&2
+    return 64
+  fi
+}
+
+run_cmd() {
+  if [[ "$DRY_RUN" == "1" ]]; then
+    printf 'DRY_RUN:'
+    printf ' %q' "$@"
+    printf '\n'
+    log "DRY_RUN: $*"
+    return 0
+  fi
+  "$@"
+}
+
+wifi_device_from_hardware_ports() {
+  /usr/sbin/networksetup -listallhardwareports |
+    /usr/bin/awk '
+      /^Hardware Port: Wi-Fi$/ { in_wifi = 1; next }
+      /^Hardware Port:/ { in_wifi = 0 }
+      in_wifi && /^Device:/ { print $2; exit }
+    '
+}
+
+default_interface() {
+  /sbin/route -n get default 2>/dev/null |
+    /usr/bin/awk '/interface:/ { print $2; exit }'
+}
+
+ipconfig_summary() {
+  local dev="$1"
+  /usr/sbin/ipconfig getsummary "$dev" 2>/dev/null || true
+}
+
+extract_summary_field() {
+  local field="$1"
+  /usr/bin/awk -v field="$field" -F' : ' '
+    {
+      key = $1
+      gsub(/^[ \t]+|[ \t]+$/, "", key)
+      if (key == field) {
+        print $2
+        exit
+      }
+    }
+  '
+}
+
+trim() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+csv_contains_exact() {
+  local csv="$1"
+  local needle="$2"
+  local old_ifs="$IFS"
+  local item
+
+  IFS=','
+  for item in $csv; do
+    item="$(trim "$item")"
+    if [[ "$item" == "$needle" ]]; then
+      IFS="$old_ifs"
+      return 0
+    fi
+  done
+  IFS="$old_ifs"
+  return 1
+}
+
+csv_marker_in_text() {
+  local csv="$1"
+  local text="$2"
+  local old_ifs="$IFS"
+  local item
+
+  IFS=','
+  for item in $csv; do
+    item="$(trim "$item")"
+    if [[ -n "$item" && "$text" == *"$item"* ]]; then
+      IFS="$old_ifs"
+      return 0
+    fi
+  done
+  IFS="$old_ifs"
+  return 1
+}
+
+current_proxy_state() {
+  /usr/sbin/networksetup -getsocksfirewallproxy "$NETWORK_SERVICE"
+}
+
+socks5_proxy_available() {
+  local host="$1"
+  local port="$2"
+  local response
+
+  response="$(
+    set +e +o pipefail
+    printf '\005\001\000' |
+      /usr/bin/nc -G "$PROXY_CHECK_TIMEOUT" -w "$PROXY_CHECK_TIMEOUT" "$host" "$port" 2>/dev/null |
+      /bin/dd bs=2 count=1 2>/dev/null |
+      /usr/bin/od -An -tx1 |
+      /usr/bin/tr -d ' \n'
+  )"
+
+  [[ "$response" == "0500" ]]
+}
+
+set_proxy_on() {
+  local router="$1"
+  local current
+
+  current="$(current_proxy_state)"
+  if printf '%s\n' "$current" | /usr/bin/grep -q '^Enabled: Yes$' &&
+     printf '%s\n' "$current" | /usr/bin/grep -q "^Server: $router$" &&
+     printf '%s\n' "$current" | /usr/bin/grep -q "^Port: $PROXY_PORT$"; then
+    log "already enabled for $router:$PROXY_PORT"
+    return 0
+  fi
+
+  run_cmd /usr/sbin/networksetup -setsocksfirewallproxy "$NETWORK_SERVICE" "$router" "$PROXY_PORT"
+  run_cmd /usr/sbin/networksetup -setsocksfirewallproxystate "$NETWORK_SERVICE" on
+  log "enabled SOCKS proxy for $NETWORK_SERVICE via $router:$PROXY_PORT"
+}
+
+set_proxy_off() {
+  local current
+
+  current="$(current_proxy_state)"
+  if printf '%s\n' "$current" | /usr/bin/grep -q '^Enabled: No$'; then
+    log "already disabled"
+    return 0
+  fi
+
+  run_cmd /usr/sbin/networksetup -setsocksfirewallproxystate "$NETWORK_SERVICE" off
+  log "disabled SOCKS proxy for $NETWORK_SERVICE"
+}
+
+evaluate() {
+  local wifi_dev="${WIFI_DEVICE:-}"
+  local def_if summary router ssid reason is_hotspot
+
+  if [[ -z "$wifi_dev" ]]; then
+    wifi_dev="$(wifi_device_from_hardware_ports)"
+  fi
+
+  if [[ -z "$wifi_dev" ]]; then
+    printf 'status=not-wifi reason=no-wifi-device\n'
+    return 2
+  fi
+
+  def_if="$(default_interface)"
+  if [[ "$def_if" != "$wifi_dev" ]]; then
+    printf 'status=not-wifi wifi_device=%s default_interface=%s\n' "$wifi_dev" "${def_if:-none}"
+    return 1
+  fi
+
+  summary="$(ipconfig_summary "$wifi_dev")"
+  router="$(printf '%s\n' "$summary" | extract_summary_field Router)"
+  ssid="$(printf '%s\n' "$summary" | extract_summary_field SSID)"
+
+  if [[ -z "$router" ]]; then
+    printf 'status=no-router wifi_device=%s ssid=%q\n' "$wifi_dev" "${ssid:-unknown}"
+    return 1
+  fi
+
+  is_hotspot=0
+  reason="no-match"
+
+  if [[ -n "$HOTSPOT_SSIDS" && -n "$ssid" ]] && csv_contains_exact "$HOTSPOT_SSIDS" "$ssid"; then
+    is_hotspot=1
+    reason="ssid"
+  elif [[ "$STRICT_SSID" != "1" && -n "$HOTSPOT_DHCP_MARKERS" ]] && csv_marker_in_text "$HOTSPOT_DHCP_MARKERS" "$summary"; then
+    is_hotspot=1
+    reason="dhcp-marker"
+  fi
+
+  if [[ "$is_hotspot" == "1" ]]; then
+    printf 'status=hotspot reason=%s wifi_device=%s router=%s ssid=%q\n' "$reason" "$wifi_dev" "$router" "${ssid:-unknown}"
+    return 0
+  fi
+
+  printf 'status=not-hotspot wifi_device=%s router=%s ssid=%q reason=%s\n' "$wifi_dev" "$router" "${ssid:-unknown}" "$reason"
+  return 1
+}
+
+router_from_evaluation() {
+  /usr/bin/sed -n 's/.* router=\([^ ]*\).*/\1/p'
+}
+
+do_evaluate() {
+  load_config
+  validate_config
+  evaluate
+}
+
+do_status() {
+  local result rc router
+
+  load_config
+  validate_config
+  set +e
+  result="$(evaluate)"
+  rc="$?"
+  set -e
+  printf '%s\n' "$result"
+
+  if [[ "$rc" == "0" && -n "$PROXY_PORT" && "$REQUIRE_PROXY_CHECK" == "1" ]]; then
+    router="$(printf '%s\n' "$result" | router_from_evaluation)"
+    if socks5_proxy_available "$router" "$PROXY_PORT"; then
+      printf 'proxy_check=socks5-ok router=%s port=%s\n' "$router" "$PROXY_PORT"
+    else
+      printf 'proxy_check=socks5-missing router=%s port=%s\n' "$router" "$PROXY_PORT"
+    fi
+  fi
+
+  current_proxy_state
+}
+
+do_run() {
+  local result rc router
+
+  load_config
+  validate_config
+  if [[ -z "$PROXY_PORT" ]]; then
+    log "PROXY_PORT is required"
+    printf 'PROXY_PORT is required\n' >&2
+    return 64
+  fi
+
+  set +e
+  result="$(evaluate)"
+  rc="$?"
+  set -e
+  printf '%s\n' "$result"
+
+  if [[ "$rc" != "0" ]]; then
+    set_proxy_off
+    return 0
+  fi
+
+  router="$(printf '%s\n' "$result" | router_from_evaluation)"
+  if [[ "$REQUIRE_PROXY_CHECK" == "1" ]] && ! socks5_proxy_available "$router" "$PROXY_PORT"; then
+    printf 'status=proxy-unavailable router=%s port=%s action=off\n' "$router" "$PROXY_PORT"
+    log "SOCKS5 unavailable at $router:$PROXY_PORT"
+    set_proxy_off
+    return 0
+  fi
+
+  set_proxy_on "$router"
+}
+
+main() {
+  local cmd="${1:-}"
+  case "$cmd" in
+    run) do_run ;;
+    status) do_status ;;
+    evaluate) do_evaluate ;;
+    -h|--help|help|"") usage ;;
+    *)
+      usage >&2
+      return 64
+      ;;
+  esac
+}
+
+main "$@"

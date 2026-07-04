@@ -1,0 +1,22 @@
+# hotspot-proxy-toggle config
+
+NETWORK_SERVICE='Wi-Fi'
+WIFI_DEVICE=''
+
+# Required. Only socks5 is supported in the current release.
+PROXY_TYPE=socks5
+
+# Required. Port where your phone exposes a SOCKS5 proxy on the hotspot router IP.
+PROXY_PORT=1080
+
+# Optional exact SSID allow-list. Comma-separated.
+HOTSPOT_SSIDS=''
+
+# Android hotspot DHCP packets usually include ANDROID_METERED.
+# Used only when STRICT_SSID is not 1.
+HOTSPOT_DHCP_MARKERS='ANDROID_METERED'
+STRICT_SSID=0
+
+# Require a SOCKS5 no-auth handshake before enabling macOS proxy settings.
+REQUIRE_PROXY_CHECK=1
+PROXY_CHECK_TIMEOUT=1

@@ -1,0 +1,9 @@
+.DS_Store
+.private/
+
+# Local runtime/config artifacts
+*.log
+*.local
+*.local.*
+hotspot-proxy-toggle.conf
+com.github.plaonn.hotspot-proxy-toggle.plist

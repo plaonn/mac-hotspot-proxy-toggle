@@ -1,38 +1,38 @@
-# Specification
+# 명세
 
-This document describes current behavior. Future ideas belong in `docs/ROADMAP.md`.
+이 문서는 현재 동작을 설명함. 미래 아이디어는 `docs/ROADMAP.md`에 둠.
 
-## Scope
+## 범위
 
-`hotspot-proxy-toggle` is a macOS utility for reconciling system proxy settings against the current phone hotspot context.
+`hotspot-proxy-toggle`은 현재 휴대폰 핫스팟 context에 맞춰 system proxy setting을 reconcile하는 macOS 유틸리티임.
 
-Current backend support:
+현재 backend support:
 
 - `PROXY_TYPE=socks5`
 
-Current network service support:
+현재 network service support:
 
-- macOS `networksetup` SOCKS firewall proxy settings for one configured network service, default `Wi-Fi`.
+- 하나의 설정된 network service에 대한 macOS `networksetup` SOCKS firewall proxy setting. 기본값은 `Wi-Fi`.
 
-## Runtime Command
+## Runtime Command 동작
 
-`bin/hotspot-proxy-toggle` supports:
+`bin/hotspot-proxy-toggle`은 아래 command를 지원함:
 
-- `evaluate`: print hotspot detection result only.
-- `status`: print hotspot detection result, optional proxy endpoint check, and current macOS SOCKS proxy state.
-- `run`: perform one reconciliation and exit.
+- `evaluate`: hotspot detection 결과만 출력함.
+- `status`: hotspot detection 결과, optional proxy endpoint check, 현재 macOS SOCKS proxy state를 출력함.
+- `run`: 한 번 reconcile하고 종료함.
 
-The runtime command does not install files, create LaunchAgents, or run a persistent loop.
+Runtime command는 파일 설치, LaunchAgent 생성, persistent loop 실행을 하지 않음.
 
-## Configuration
+## 설정
 
-Default config path:
+기본 config path:
 
 ```text
 ~/.config/hotspot-proxy-toggle.conf
 ```
 
-Supported keys:
+지원 key:
 
 ```bash
 NETWORK_SERVICE='Wi-Fi'
@@ -47,49 +47,49 @@ PROXY_CHECK_TIMEOUT=1
 DRY_RUN=0
 ```
 
-`PROXY_TYPE` values other than `socks5` are rejected.
+`socks5`가 아닌 `PROXY_TYPE` 값은 거부함.
 
-## Detection
+## 감지
 
-The utility:
+유틸리티는 아래 순서로 판단함:
 
-1. Discovers the Wi-Fi device from `networksetup -listallhardwareports` unless `WIFI_DEVICE` is set.
-2. Reads the default route interface from `route -n get default`.
-3. Exits the hotspot path if the default interface is not the Wi-Fi device.
-4. Reads DHCP summary from `ipconfig getsummary <wifi-device>`.
-5. Extracts `Router` and `SSID`.
-6. Matches hotspot status by exact SSID allow-list or DHCP marker, depending on config.
+1. `WIFI_DEVICE`가 설정되어 있지 않으면 `networksetup -listallhardwareports`로 Wi-Fi device를 찾음.
+2. `route -n get default`에서 default route interface를 읽음.
+3. default interface가 Wi-Fi device가 아니면 hotspot path를 종료함.
+4. `ipconfig getsummary <wifi-device>`에서 DHCP summary를 읽음.
+5. `Router`와 `SSID`를 추출함.
+6. 설정에 따라 exact SSID allow-list 또는 DHCP marker로 hotspot status를 판단함.
 
-`STRICT_SSID=1` disables DHCP marker fallback.
+`STRICT_SSID=1`이면 DHCP marker fallback을 비활성화함.
 
-## Proxy Check
+## 프록시 확인
 
-When `REQUIRE_PROXY_CHECK=1`, the `socks5` backend sends this SOCKS5 no-auth greeting:
+`REQUIRE_PROXY_CHECK=1`이면 `socks5` backend는 아래 SOCKS5 no-auth greeting을 보냄:
 
 ```text
 05 01 00
 ```
 
-It requires this response before enabling macOS proxy settings:
+macOS proxy setting을 켜기 전에 아래 응답을 요구함:
 
 ```text
 05 00
 ```
 
-This verifies that the port is a SOCKS5 no-auth proxy rather than merely an open TCP port.
+이 확인은 단순히 TCP port가 열려 있는지가 아니라 해당 port가 SOCKS5 no-auth proxy인지 검증함.
 
-## Reconciliation
+## Reconciliation 규칙
 
-`run` applies these rules:
+`run`은 아래 규칙을 적용함:
 
-- Not Wi-Fi, no router, or not hotspot: disable the configured network service's SOCKS proxy state.
-- Hotspot candidate with unavailable proxy endpoint: disable the SOCKS proxy state.
-- Hotspot candidate with available SOCKS5 endpoint: set SOCKS host to the current router IP, set port to `PROXY_PORT`, and enable SOCKS proxy state.
-- If the current macOS proxy state already matches the desired state, avoid redundant `networksetup` writes where practical.
+- Wi-Fi가 아니거나, router가 없거나, hotspot이 아니면 설정된 network service의 SOCKS proxy state를 끔.
+- Hotspot candidate지만 proxy endpoint를 사용할 수 없으면 SOCKS proxy state를 끔.
+- Hotspot candidate이고 SOCKS5 endpoint를 사용할 수 있으면 SOCKS host를 현재 router IP로, port를 `PROXY_PORT`로 설정하고 SOCKS proxy state를 켬.
+- 현재 macOS proxy state가 이미 desired state와 일치하면 가능한 한 불필요한 `networksetup` write를 피함.
 
-## Installation
+## 설치
 
-`install.sh` installs:
+`install.sh`는 아래를 설치함:
 
 ```text
 ~/.local/share/hotspot-proxy-toggle/
@@ -98,14 +98,14 @@ This verifies that the port is a SOCKS5 no-auth proxy rather than merely an open
 ~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.plist
 ```
 
-The LaunchAgent calls:
+LaunchAgent는 아래 command를 호출함:
 
 ```text
 hotspot-proxy-toggle run
 ```
 
-The default polling interval is 60 seconds.
+기본 polling interval은 60초임.
 
-## Uninstall
+## 제거
 
-`uninstall.sh` unloads the LaunchAgent, removes the installed binary tree and command symlink, and keeps the config file.
+`uninstall.sh`는 LaunchAgent를 unload하고, 설치된 binary tree와 command symlink를 제거하며, config file은 유지함.

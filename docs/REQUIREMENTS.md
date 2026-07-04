@@ -1,50 +1,51 @@
-# Requirements
+# 요구사항
 
-This document is the RDD source of truth for the project.
+이 문서는 이 프로젝트의 RDD source of truth임.
 
-## R0: Root Goal
+## R0: 루트 목표
 
-- Requirement: Keep macOS proxy settings aligned with the current phone hotspot context without requiring a fixed hotspot router IP or manual proxy toggling.
-- Rationale: macOS applies proxy settings per network service, while phone hotspots can change router IPs between connections.
-- Failure prevented: Users should not have to leave a stale proxy enabled on normal Wi-Fi or manually edit the proxy host every time the phone hotspot changes router IP.
-- Automation boundary: The utility may modify macOS proxy settings for the configured network service. It must not configure the phone, start a proxy server on the phone, or infer credentials.
+- 요구사항: 고정된 핫스팟 라우터 IP나 수동 프록시 토글 없이, macOS 프록시 설정을 현재 휴대폰 핫스팟 context와 일치시킴.
+- 근거: macOS는 프록시 설정을 network service 단위로 적용하지만, 휴대폰 핫스팟은 연결마다 라우터 IP가 바뀔 수 있음.
+- 방지 실패: 사용자가 일반 Wi-Fi에서 stale proxy를 켜 둔 채로 두거나, 휴대폰 핫스팟 라우터 IP가 바뀔 때마다 proxy host를 수동 수정해야 하는 상황을 막음.
+- 자동화 경계: 이 유틸리티는 설정된 network service의 macOS proxy setting을 변경할 수 있음. 휴대폰 설정, 휴대폰 위 proxy server 시작, credential 추론은 하지 않음.
+- 비목표: 휴대폰 쪽 proxy server 관리, 구체 requirement 없는 authenticated SOCKS proxy 지원, persistent shell loop 실행, public repository file에 private operator task state 저장.
 
-## R1: Hotspot-Scoped Proxy Enablement
+## R1: 핫스팟 범위의 프록시 활성화
 
-- Requirement: Enable macOS proxy settings only when the current default route is Wi-Fi and the Wi-Fi network matches the configured hotspot criteria.
-- Rationale: macOS network services are broader than a single SSID, so the utility must avoid enabling proxy settings for unrelated networks.
-- Failure prevented: Avoid routing normal Wi-Fi traffic through a phone-specific proxy configuration.
-- Spec: Match the Wi-Fi interface through macOS hardware port discovery unless `WIFI_DEVICE` overrides it. Treat exact `HOTSPOT_SSIDS` matches as hotspot matches. When `STRICT_SSID=0`, allow DHCP marker matches such as `ANDROID_METERED`.
-- Checks: `hotspot-proxy-toggle evaluate` reports `status=hotspot` only when the default route is the Wi-Fi device and hotspot criteria match.
+- 요구사항: 현재 default route가 Wi-Fi이고 Wi-Fi network가 설정된 hotspot 조건과 일치할 때만 macOS proxy setting을 켬.
+- 근거: macOS network service는 단일 SSID보다 넓은 범위이므로, 관련 없는 네트워크에서 proxy setting이 켜지면 안 됨.
+- 방지 실패: 일반 Wi-Fi traffic이 휴대폰 전용 proxy 설정으로 routing되는 일을 막음.
+- 명세: `WIFI_DEVICE` override가 없으면 macOS hardware port discovery로 Wi-Fi interface를 찾음. `HOTSPOT_SSIDS`는 exact match로 판단함. `STRICT_SSID=0`이면 `ANDROID_METERED` 같은 DHCP marker match를 허용함.
+- 테스트: `hotspot-proxy-toggle evaluate`는 default route가 Wi-Fi device이고 hotspot 조건이 일치할 때만 `status=hotspot`을 보고함.
 
-## R2: Dynamic Router IP Resolution
+## R2: 동적 라우터 IP 해석
 
-- Requirement: Use the current Wi-Fi DHCP router IP as the proxy host instead of a fixed configured host.
-- Rationale: Phone hotspot router IPs may change between connections.
-- Failure prevented: Avoid stale proxy host settings after reconnecting to the same phone hotspot.
-- Spec: Read `Router` from `ipconfig getsummary <wifi-device>` on each reconciliation.
-- Checks: `hotspot-proxy-toggle status` includes the detected `router=<ip>` for hotspot candidates.
+- 요구사항: 고정 host가 아니라 현재 Wi-Fi DHCP router IP를 proxy host로 사용함.
+- 근거: 휴대폰 핫스팟 라우터 IP는 연결마다 바뀔 수 있음.
+- 방지 실패: 같은 휴대폰 핫스팟에 다시 연결한 뒤 stale proxy host 설정이 남는 일을 막음.
+- 명세: 매 reconciliation마다 `ipconfig getsummary <wifi-device>`의 `Router`를 읽음.
+- 테스트: `hotspot-proxy-toggle status`는 hotspot candidate에서 감지된 `router=<ip>`를 포함함.
 
-## R3: Endpoint-Gated Proxy State
+## R3: Endpoint 확인 기반 프록시 상태
 
-- Requirement: Enable macOS proxy settings only when the configured proxy endpoint is actually available on the current hotspot router.
-- Rationale: A hotspot may be connected while the proxy server on the phone is stopped.
-- Failure prevented: Avoid enabling a broken system-wide proxy that prevents applications from reaching the network.
-- Spec: With `PROXY_TYPE=socks5` and `REQUIRE_PROXY_CHECK=1`, send a SOCKS5 no-auth greeting to `router:PROXY_PORT` and require a `0500` response before enabling proxy settings.
-- Checks: When the endpoint is unavailable, `run` reports `status=proxy-unavailable ... action=off` and disables the macOS proxy state.
+- 요구사항: 현재 핫스팟 라우터에서 설정된 proxy endpoint가 실제로 사용 가능할 때만 macOS proxy setting을 켬.
+- 근거: 핫스팟에는 연결되어 있어도 휴대폰의 proxy server가 꺼져 있을 수 있음.
+- 방지 실패: 사용할 수 없는 system-wide proxy를 켜서 애플리케이션 네트워크 연결이 깨지는 일을 막음.
+- 명세: `PROXY_TYPE=socks5`와 `REQUIRE_PROXY_CHECK=1`일 때 `router:PROXY_PORT`로 SOCKS5 no-auth greeting을 보내고, proxy setting을 켜기 전에 `0500` 응답을 요구함.
+- 테스트: endpoint가 없으면 `run`은 `status=proxy-unavailable ... action=off`를 보고하고 macOS proxy state를 끔.
 
-## R4: Maintainable Automation Boundary
+## R4: 유지보수 가능한 자동화 경계
 
-- Requirement: Keep the polling implementation compatible with a later event-driven network-change trigger.
-- Rationale: Polling is simple and reliable for initial use, but an event-driven helper can reduce wakeups and improve reaction time later.
-- Failure prevented: Avoid embedding install-time or daemon lifecycle assumptions into the runtime reconciliation logic.
-- Spec: `bin/hotspot-proxy-toggle run` performs exactly one reconciliation and exits. LaunchAgent polling is configured outside the runtime command.
-- Checks: LaunchAgent `ProgramArguments` call `hotspot-proxy-toggle run`; `bin/hotspot-proxy-toggle` has no persistent loop.
+- 요구사항: polling 구현을 나중에 event-driven network-change trigger로 바꿀 수 있게 유지함.
+- 근거: Polling은 초기 사용에 단순하고 안정적이지만, event-driven helper는 wakeup을 줄이고 반응 시간을 개선할 수 있음.
+- 방지 실패: install-time 또는 daemon lifecycle 가정을 runtime reconciliation logic에 박아 넣는 일을 막음.
+- 명세: `bin/hotspot-proxy-toggle run`은 정확히 한 번 reconcile하고 종료함. LaunchAgent polling은 runtime command 밖에서 설정함.
+- 테스트: LaunchAgent `ProgramArguments`는 `hotspot-proxy-toggle run`을 호출하고, `bin/hotspot-proxy-toggle`에는 persistent loop가 없음.
 
-## R5: Public Utility Hygiene
+## R5: Public Utility 위생
 
-- Requirement: Public repository files must not expose private operator state.
-- Rationale: The utility is intended to be usable as a public macOS project.
-- Failure prevented: Avoid leaking private Todoist IDs, Codex thread IDs, SSIDs, logs, local absolute paths, or personal runtime state.
-- Spec: Public docs explain behavior and usage generically. Private planning and Todoist mapping live under `.private/`, which is ignored by Git.
-- Checks: `git status --short` should not show `.private/` contents, logs, local config, or generated plist files.
+- 요구사항: Public repository file은 private operator state를 노출하지 않음.
+- 근거: 이 유틸리티는 public macOS project로 재사용될 수 있어야 함.
+- 방지 실패: private Todoist ID, Codex thread ID, SSID, log, local absolute path, personal runtime state가 유출되는 일을 막음.
+- 명세: Public docs는 동작과 사용법을 generic하게 설명함. Private planning과 Todoist mapping은 Git에서 ignore되는 `.private/` 아래에 둠.
+- 테스트: `git status --short`에 `.private/` 내용, log, local config, generated plist file이 나오면 안 됨.

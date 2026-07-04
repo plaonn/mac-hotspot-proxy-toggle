@@ -1,22 +1,22 @@
-# Roadmap
+# 로드맵
 
-This document keeps public future direction only. Active work tracking is not duplicated here.
+이 문서는 공개 가능한 future direction만 유지함. Active work tracking은 여기서 중복 관리하지 않음.
 
-## Near-Term
+## 가까운 후보
 
-- Add a small shell-based test harness for parser and decision logic.
-- Improve diagnostics for unsupported proxy types and unavailable dependencies.
-- Add `shellcheck` validation once the project has a documented development setup.
+- Parser와 decision logic을 위한 작은 shell-based test harness 추가.
+- 지원하지 않는 proxy type과 사용할 수 없는 dependency에 대한 diagnostics 개선.
+- 프로젝트에 development setup이 문서화되면 `shellcheck` validation 추가.
 
-## Later
+## 나중 후보
 
-- Add an event-driven macOS helper that triggers `hotspot-proxy-toggle run` on network state changes instead of relying on polling.
-- Add additional proxy backends behind `PROXY_TYPE`, such as HTTP proxy or PAC configuration, if a real use case appears.
-- Consider packaging options such as Homebrew formula support.
+- Polling 대신 network state change 시 `hotspot-proxy-toggle run`을 trigger하는 event-driven macOS helper 추가.
+- 실제 use case가 생기면 `PROXY_TYPE` 뒤에 HTTP proxy, PAC configuration 같은 추가 backend 도입.
+- Homebrew formula 같은 packaging option 검토.
 
-## Non-Goals
+## 비목표
 
-- Managing the phone-side proxy server.
-- Supporting authenticated SOCKS proxies before a concrete requirement exists.
-- Running a persistent shell loop.
-- Storing private operator task state in public repository files.
+- 휴대폰 쪽 proxy server 관리.
+- 구체 requirement가 생기기 전 authenticated SOCKS proxy 지원.
+- Persistent shell loop 실행.
+- Public repository file에 private operator task state 저장.

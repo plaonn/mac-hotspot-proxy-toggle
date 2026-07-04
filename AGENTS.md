@@ -1,28 +1,29 @@
-# Project Instructions
+# 프로젝트 지침
 
-This is a public macOS utility repository. Keep public files free of personal Todoist IDs, Codex thread IDs, private absolute paths, local router addresses, SSIDs, logs, and operator-only notes.
+이 저장소는 public macOS 유틸리티 저장소임. Public 파일에는 개인 Todoist ID, Codex thread ID, private absolute path, 로컬 router 주소, SSID, 로그, operator-only note를 넣지 않음.
 
-## Source Of Truth
+## 기준 문서
 
-- `docs/REQUIREMENTS.md`: RDD root goal, requirements, rationale, failure-prevented statements, and loop boundaries.
-- `docs/SPEC.md`: current public behavior and implementation contract.
-- `docs/ROADMAP.md`: public future direction and non-goals.
-- `README.md`: user-facing install and usage guide.
+- `docs/REQUIREMENTS.md`: RDD root goal, requirement, rationale, failure-prevented statement, loop boundary.
+- `docs/SPEC.md`: 현재 public 동작과 구현 contract.
+- `docs/ROADMAP.md`: 공개 가능한 future direction과 non-goal.
+- `README.md`: 사용자-facing 설치와 사용 가이드.
 
-## Implementation Rules
+## 구현 규칙
 
-- Keep the runtime command a single-shot reconciler. It should inspect current network/proxy state, apply the minimal required macOS proxy change, and exit.
-- Keep installation, LaunchAgent templating, and uninstall logic outside `bin/hotspot-proxy-toggle`.
-- Preserve the generic proxy project naming. The current implementation may support only SOCKS5, but new proxy types should be added as explicit `PROXY_TYPE` backends.
-- Do not add long-running daemons unless an event-driven helper is intentionally introduced and documented.
-- Do not commit generated local config, logs, LaunchAgent outputs, or `.private/` files.
+- runtime command는 single-shot reconciler로 유지함. 현재 network/proxy state를 inspect하고, 필요한 최소 macOS proxy 변경만 적용한 뒤 종료해야 함.
+- 설치, LaunchAgent templating, uninstall 로직은 `bin/hotspot-proxy-toggle` 밖에 둠.
+- generic proxy 프로젝트 naming을 유지함. 현재 구현은 SOCKS5만 지원할 수 있지만, 새 proxy type은 명시적인 `PROXY_TYPE` backend로 추가해야 함.
+- event-driven helper를 의도적으로 도입하고 문서화하기 전에는 long-running daemon을 추가하지 않음.
+- generated local config, log, LaunchAgent output, `.private/` 파일을 commit하지 않음.
+- 이 프로젝트의 durable 문서 기본 언어는 한국어임. 외부 사용자-facing artifact를 영어로 만들 필요가 있으면 먼저 maintainer에게 확인함.
 
-## Validation
+## 검증
 
-For script-only changes, run:
+Script-only 변경에서는 아래를 실행함:
 
 ```bash
 bash -n bin/hotspot-proxy-toggle install.sh uninstall.sh
 ```
 
-When behavior changes, also run dry-run or status checks appropriate to the host macOS environment and document any checks that could not be performed.
+동작이 바뀌면 host macOS 환경에 맞는 dry-run 또는 status check도 실행하고, 수행하지 못한 check가 있으면 명시함.

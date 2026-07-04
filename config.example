@@ -1,22 +1,22 @@
-# hotspot-proxy-toggle config
+# hotspot-proxy-toggle config 예시
 
 NETWORK_SERVICE='Wi-Fi'
 WIFI_DEVICE=''
 
-# Required. Only socks5 is supported in the current release.
+# 필수. 현재 release에서는 socks5만 지원함.
 PROXY_TYPE=socks5
 
-# Required. Port where your phone exposes a SOCKS5 proxy on the hotspot router IP.
+# 필수. 휴대폰이 핫스팟 라우터 IP 위에서 SOCKS5 proxy를 여는 port.
 PROXY_PORT=1080
 
-# Optional exact SSID allow-list. Comma-separated.
+# 선택. 정확히 매칭할 SSID allow-list. 쉼표로 구분함.
 HOTSPOT_SSIDS=''
 
-# Android hotspot DHCP packets usually include ANDROID_METERED.
-# Used only when STRICT_SSID is not 1.
+# Android hotspot DHCP packet에는 보통 ANDROID_METERED가 포함됨.
+# STRICT_SSID가 1이 아닐 때만 사용함.
 HOTSPOT_DHCP_MARKERS='ANDROID_METERED'
 STRICT_SSID=0
 
-# Require a SOCKS5 no-auth handshake before enabling macOS proxy settings.
+# macOS proxy setting을 켜기 전에 SOCKS5 no-auth handshake를 요구함.
 REQUIRE_PROXY_CHECK=1
 PROXY_CHECK_TIMEOUT=1

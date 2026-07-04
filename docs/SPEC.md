@@ -121,6 +121,8 @@ macOS proxy setting을 켜기 전에 아래 응답을 요구함:
 ~/.config/hotspot-proxy-toggle.conf
 ```
 
+설치 시작 시 installer는 helper/polling LaunchAgent를 모두 unload하고 generated plist를 삭제함. 이후 binary와 선택된 LaunchAgent를 갱신함. Config file과 log file은 upgrade 중 유지함.
+
 event helper 설치가 가능하면 기본값으로 아래 helper 파일과 helper LaunchAgent를 설치함:
 
 ```text

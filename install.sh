@@ -133,6 +133,14 @@ unload_launch_agent() {
   /bin/launchctl bootout "gui/$(/usr/bin/id -u)" "$plist_path" >/dev/null 2>&1 || true
 }
 
+cleanup_managed_runtime() {
+  unload_launch_agent "$HELPER_PLIST_PATH"
+  unload_launch_agent "$PLIST_PATH"
+  /bin/rm -f "$HELPER_PLIST_PATH"
+  /bin/rm -f "$PLIST_PATH"
+  printf 'Stopped managed LaunchAgents\n'
+}
+
 load_launch_agent() {
   local label="$1"
   local plist_path="$2"
@@ -148,21 +156,18 @@ load_launch_agent() {
 
 install_event_launch_agent() {
   install_helper_file || return 1
-  unload_launch_agent "$PLIST_PATH"
-  /bin/rm -f "$PLIST_PATH"
   write_helper_launch_agent || return 1
   load_launch_agent "$HELPER_LABEL" "$HELPER_PLIST_PATH" 0 || return 1
 }
 
 install_polling_launch_agent() {
-  unload_launch_agent "$HELPER_PLIST_PATH"
-  /bin/rm -f "$HELPER_PLIST_PATH"
   write_polling_launch_agent || return 1
   load_launch_agent "$LABEL" "$PLIST_PATH" || return 1
 }
 
 main() {
   resolve_trigger_mode || return
+  cleanup_managed_runtime || return
   install_files || return
   write_config_if_missing || return
 

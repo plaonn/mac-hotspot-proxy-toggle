@@ -59,6 +59,10 @@ install_files() {
   EVENTS+=("install-files")
 }
 
+cleanup_managed_runtime() {
+  EVENTS+=("cleanup")
+}
+
 write_config_if_missing() {
   EVENTS+=("write-config")
 }
@@ -80,7 +84,7 @@ default_install_uses_event_helper() {
   output="$(<"$TEST_TMP/default-event.out")"
 
   assert_contains "$output" "Trigger mode: event" &&
-    [[ "${EVENTS[*]-}" == "install-files write-config event" ]]
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event" ]]
 }
 
 event_install_falls_back_to_polling() {
@@ -93,7 +97,7 @@ event_install_falls_back_to_polling() {
 
   assert_contains "$output" "Event helper install failed; falling back to polling LaunchAgent" &&
     assert_contains "$output" "Trigger mode: polling" &&
-    [[ "${EVENTS[*]-}" == "install-files write-config event polling" ]]
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event polling" ]]
 }
 
 explicit_polling_skips_event_helper() {
@@ -105,7 +109,7 @@ explicit_polling_skips_event_helper() {
   output="$(<"$TEST_TMP/explicit-polling.out")"
 
   assert_contains "$output" "Trigger mode: polling" &&
-    [[ "${EVENTS[*]-}" == "install-files write-config polling" ]]
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config polling" ]]
 }
 
 unsupported_trigger_mode_is_rejected() {

@@ -10,6 +10,7 @@ scripts=(
   "install.sh"
   "uninstall.sh"
   "tests/run.sh"
+  "tests/install.sh"
   "scripts/validate.sh"
   "scripts/build-helper.sh"
 )
@@ -19,6 +20,9 @@ bash -n "${scripts[@]}"
 
 printf '\n==> decision tests\n'
 ./tests/run.sh
+
+printf '\n==> install flow tests\n'
+./tests/install.sh
 
 if command -v shellcheck >/dev/null 2>&1; then
   printf '\n==> shellcheck\n'

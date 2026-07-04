@@ -41,7 +41,7 @@ helper는 아래 역할만 함:
 
 helper는 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음.
 
-설치 기본값은 여전히 polling LaunchAgent임. `HOTSPOT_TRIGGER_MODE=event`를 명시하면 `install.sh`가 helper binary를 빌드하고 helper LaunchAgent를 설치함.
+설치 기본값은 event-driven helper LaunchAgent임. helper build 또는 helper LaunchAgent 설치가 실패하면 `install.sh`는 polling LaunchAgent로 fallback함. `HOTSPOT_TRIGGER_MODE=polling`을 명시하면 polling LaunchAgent를 강제로 설치함.
 
 ## 설정
 
@@ -113,26 +113,18 @@ macOS proxy setting을 켜기 전에 아래 응답을 요구함:
 
 ## 설치
 
-기본 `install.sh`는 아래를 설치함:
+기본 `install.sh`는 아래 공통 파일을 설치함:
 
 ```text
 ~/.local/share/hotspot-proxy-toggle/
 ~/.local/bin/hotspot-proxy-toggle
 ~/.config/hotspot-proxy-toggle.conf
-~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.plist
 ```
 
-LaunchAgent는 아래 command를 호출함:
+event helper 설치가 가능하면 기본값으로 아래 helper 파일과 helper LaunchAgent를 설치함:
 
 ```text
-hotspot-proxy-toggle run
-```
-
-기본 polling interval은 60초임.
-
-`HOTSPOT_TRIGGER_MODE=event`로 설치하면 아래 helper LaunchAgent를 설치하고 polling LaunchAgent는 제거함:
-
-```text
+~/.local/share/hotspot-proxy-toggle/bin/hotspot-proxy-toggle-helper
 ~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.helper.plist
 ```
 
@@ -146,7 +138,19 @@ HELPER_MAX_RUNS=3
 HELPER_WINDOW_SECONDS=10
 ```
 
-기본 `./install.sh`를 다시 실행하면 helper LaunchAgent를 unload/remove하고 polling LaunchAgent로 되돌림.
+helper build 또는 helper LaunchAgent 설치가 실패하거나 `HOTSPOT_TRIGGER_MODE=polling`을 명시하면 아래 polling LaunchAgent를 설치하고 helper LaunchAgent는 제거함:
+
+```text
+~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.plist
+```
+
+polling LaunchAgent는 아래 command를 호출함:
+
+```text
+hotspot-proxy-toggle run
+```
+
+기본 polling interval은 60초임. 기본 `./install.sh`를 다시 실행하면 event helper 설치를 다시 시도함.
 
 ## 제거
 

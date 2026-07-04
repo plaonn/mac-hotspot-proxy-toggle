@@ -2,7 +2,7 @@
 
 ## 상태
 
-제안은 승인됐고, `Sources/hotspot-proxy-toggle-helper/main.swift`에 helper를 추가함. 현재 설치 기본값은 polling으로 유지하고, `HOTSPOT_TRIGGER_MODE=event` opt-in 설치 경로를 둠.
+제안은 승인됐고, `Sources/hotspot-proxy-toggle-helper/main.swift`에 helper를 추가함. 현재 설치 기본값은 event-driven helper이며, helper 설치 실패 또는 `HOTSPOT_TRIGGER_MODE=polling` 명시 시 polling LaunchAgent로 fallback함.
 
 ## Root goal
 
@@ -13,8 +13,8 @@ Polling wakeup을 줄이면서도 `hotspot-proxy-toggle run`의 single-shot reco
 - network state change가 감지되면 기존 runtime command인 `hotspot-proxy-toggle run`을 호출함.
 - runtime command는 계속 한 번 reconcile하고 종료함.
 - helper는 proxy host 계산, hotspot 판정, macOS proxy write policy를 재구현하지 않음.
-- helper는 설치 기본값이 아니라 opt-in 실험 경로로 시작함.
-- helper가 실패해도 기존 polling LaunchAgent로 되돌릴 수 있어야 함.
+- helper는 설치 기본 trigger로 동작함.
+- helper 설치가 실패해도 기존 polling LaunchAgent로 되돌릴 수 있어야 함.
 
 ## 배경
 
@@ -111,7 +111,7 @@ CoreWLAN의 SSID/link 관련 notification을 구독해서 Wi-Fi 변화만 감지
 
 ## 권장 설계
 
-1차 event-driven 설계는 `SCDynamicStore` 기반 opt-in helper로 둠.
+event-driven 설계는 `SCDynamicStore` 기반 helper를 기본 trigger로 둠.
 
 구성:
 
@@ -123,11 +123,11 @@ CoreWLAN의 SSID/link 관련 notification을 구독해서 Wi-Fi 변화만 감지
        -> runs hotspot-proxy-toggle run
 ```
 
-기존 polling plist는 유지함. 실험 단계에서는 아래 중 하나를 선택하게 함.
+기존 polling plist는 fallback으로 유지함. 설치 단계에서는 아래 중 하나가 적용됨.
 
-- 안정 기본값: 기존 polling LaunchAgent
-- 실험 옵션: event-driven helper LaunchAgent
-- fallback 옵션: helper를 unload하고 polling LaunchAgent를 다시 load
+- 기본값: event-driven helper LaunchAgent
+- fallback: helper install 실패 시 polling LaunchAgent
+- 강제 polling: `HOTSPOT_TRIGGER_MODE=polling`
 
 helper는 아래 invariant를 지켜야 함.
 
@@ -155,13 +155,15 @@ helper는 아래 invariant를 지켜야 함.
 
 ## 설치/마이그레이션 경로
 
-### Phase 0: 현재 상태 유지
+### Phase 0: 기존 polling 기본값
 
+- 완료됨.
 - polling LaunchAgent를 기본값으로 유지함.
 - `StartInterval` 기반 behavior를 public spec에 계속 현재 truth로 둠.
 
 ### Phase 1: helper spike
 
+- 완료됨.
 - `hotspot-proxy-toggle-helper` prototype을 별도 파일로 추가함.
 - installer 기본 동작은 바꾸지 않음.
 - 수동 실행 또는 별도 실험 install flag로만 helper plist를 생성함.
@@ -173,7 +175,7 @@ helper는 아래 invariant를 지켜야 함.
 - event burst를 debounce하고, child process로 `hotspot-proxy-toggle run`을 호출함.
 - `--dry-run`을 주면 child command에 `DRY_RUN=1`을 전달함.
 - `--once`를 주면 event loop 없이 child command를 한 번 실행하고 종료함.
-- 설치 기본값은 polling이지만, 명시적 opt-in으로 helper LaunchAgent를 설치할 수 있음.
+- 설치 기본값은 event helper이며, helper install 실패 시 polling LaunchAgent로 fallback함.
 
 수동 빌드:
 
@@ -185,14 +187,22 @@ helper는 아래 invariant를 지켜야 함.
 ### Phase 2: opt-in install option
 
 - 완료됨.
-- `HOTSPOT_TRIGGER_MODE=event ./install.sh`는 helper binary를 빌드하고 helper LaunchAgent를 설치함.
-- 기본값은 `polling`으로 유지함.
-- `./install.sh`를 다시 실행하면 polling LaunchAgent로 되돌림.
+- 이 단계에서는 `HOTSPOT_TRIGGER_MODE=event ./install.sh`가 helper binary를 빌드하고 helper LaunchAgent를 설치했음.
+- 이 단계에서는 기본값을 `polling`으로 유지했음.
+- 이 단계에서는 기본 `./install.sh`를 다시 실행하면 polling LaunchAgent로 되돌렸음.
 - `uninstall.sh`는 helper LaunchAgent와 polling LaunchAgent를 모두 정리함.
 
-### Phase 3: 기본값 전환 검토
+### Phase 3: 기본값 전환
 
-아래 조건을 만족할 때만 event-driven 기본값 전환을 검토함.
+- 완료됨.
+- 기본 `./install.sh`는 event helper 설치를 시도함.
+- helper build 또는 helper LaunchAgent 설치가 실패하면 polling LaunchAgent로 fallback함.
+- `HOTSPOT_TRIGGER_MODE=polling ./install.sh`는 polling LaunchAgent를 강제로 설치함.
+- `uninstall.sh`는 helper LaunchAgent와 polling LaunchAgent를 모두 정리함.
+
+### Phase 4: 운영 검증
+
+아래 조건은 event-driven 기본 mode의 운영 신뢰도 개선 대상으로 유지함.
 
 - sleep/wake, Wi-Fi 전환, 같은 SSID 재연결, hotspot router IP 변경, proxy server off/on case가 검증됨.
 - helper crash/restart behavior가 launchd 아래에서 안정적임.
@@ -220,18 +230,17 @@ Manual macOS 검증:
 Acceptance:
 
 - event-driven mode에서도 `hotspot-proxy-toggle run`은 single-shot으로 유지됨.
-- helper가 없는 설치와 기존 polling 설치가 계속 동작함.
-- event-driven mode를 제거하면 polling mode로 되돌릴 수 있음.
-- public docs에 default mode, experimental mode, fallback이 명확히 구분됨.
+- helper 설치가 실패해도 polling 설치가 계속 동작함.
+- `HOTSPOT_TRIGGER_MODE=polling`으로 polling mode를 강제할 수 있음.
+- public docs에 default mode와 fallback이 명확히 구분됨.
 
 ## 현재 결론
 
-현재는 opt-in 설치 경로까지 구현됨. 다음 구현 task를 만든다면 실제 macOS network transition 검증과 helper 기본값 전환 여부 판단이 적절함.
+현재는 event-driven helper가 기본 설치 경로이고 polling LaunchAgent가 fallback임. 다음 구현 task를 만든다면 실제 macOS network transition 검증과 fallback diagnostics 개선이 적절함.
 
 그 task의 경계:
 
 - 실제 핫스팟 연결/해제, sleep/wake, proxy endpoint off/on 전환을 검증함.
-- installer 기본값은 검증 전까지 바꾸지 않음.
 - polling LaunchAgent fallback을 유지함.
 - helper가 실제 proxy write를 직접 수행하지 않음.
 

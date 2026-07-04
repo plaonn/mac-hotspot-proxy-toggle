@@ -20,11 +20,7 @@ HELPER_WINDOW_SECONDS="${HELPER_WINDOW_SECONDS:-10}"
 
 resolve_trigger_mode() {
   if [[ -z "$HOTSPOT_TRIGGER_MODE" ]]; then
-    if [[ "${EVENT_HELPER:-0}" == "1" ]]; then
-      HOTSPOT_TRIGGER_MODE="event"
-    else
-      HOTSPOT_TRIGGER_MODE="polling"
-    fi
+    HOTSPOT_TRIGGER_MODE="event"
   fi
 
   case "$HOTSPOT_TRIGGER_MODE" in
@@ -123,7 +119,10 @@ install_files() {
 install_helper_file() {
   local output
 
-  output="$(BUILD_DIR="$INSTALL_ROOT/bin" "$SOURCE_DIR/scripts/build-helper.sh")"
+  if ! output="$(BUILD_DIR="$INSTALL_ROOT/bin" "$SOURCE_DIR/scripts/build-helper.sh" 2>&1)"; then
+    printf '%s\n' "$output" >&2
+    return 1
+  fi
   /bin/chmod 755 "$HELPER_BIN"
   printf 'Installed helper: %s\n' "$output"
 }
@@ -147,27 +146,39 @@ load_launch_agent() {
   printf 'Loaded LaunchAgent: %s\n' "$label"
 }
 
+install_event_launch_agent() {
+  install_helper_file || return 1
+  unload_launch_agent "$PLIST_PATH"
+  /bin/rm -f "$PLIST_PATH"
+  write_helper_launch_agent || return 1
+  load_launch_agent "$HELPER_LABEL" "$HELPER_PLIST_PATH" 0 || return 1
+}
+
+install_polling_launch_agent() {
+  unload_launch_agent "$HELPER_PLIST_PATH"
+  /bin/rm -f "$HELPER_PLIST_PATH"
+  write_polling_launch_agent || return 1
+  load_launch_agent "$LABEL" "$PLIST_PATH" || return 1
+}
+
 main() {
-  resolve_trigger_mode
-  install_files
-  if [[ "$HOTSPOT_TRIGGER_MODE" == "event" ]]; then
-    install_helper_file
-  fi
-  write_config_if_missing
+  resolve_trigger_mode || return
+  install_files || return
+  write_config_if_missing || return
 
   if [[ "$HOTSPOT_TRIGGER_MODE" == "event" ]]; then
-    unload_launch_agent "$PLIST_PATH"
-    /bin/rm -f "$PLIST_PATH"
-    write_helper_launch_agent
-    load_launch_agent "$HELPER_LABEL" "$HELPER_PLIST_PATH" 0
+    if ! install_event_launch_agent; then
+      printf 'Event helper install failed; falling back to polling LaunchAgent\n' >&2
+      HOTSPOT_TRIGGER_MODE="polling"
+      install_polling_launch_agent || return
+    fi
   else
-    unload_launch_agent "$HELPER_PLIST_PATH"
-    /bin/rm -f "$HELPER_PLIST_PATH"
-    write_polling_launch_agent
-    load_launch_agent "$LABEL" "$PLIST_PATH"
+    install_polling_launch_agent || return
   fi
 
   printf 'Trigger mode: %s\n' "$HOTSPOT_TRIGGER_MODE"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

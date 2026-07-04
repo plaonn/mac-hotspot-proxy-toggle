@@ -39,11 +39,11 @@
 
 ## R4: 유지보수 가능한 자동화 경계
 
-- 요구사항: polling 구현을 나중에 event-driven network-change trigger로 바꿀 수 있게 유지함.
-- 근거: Polling은 초기 사용에 단순하고 안정적이지만, event-driven helper는 wakeup을 줄이고 반응 시간을 개선할 수 있음.
+- 요구사항: 기본 자동화 trigger는 event-driven network-change helper로 두되, helper를 설치할 수 없거나 polling을 명시한 경우 polling LaunchAgent로 fallback함.
+- 근거: event-driven helper는 불필요한 wakeup을 줄이고 반응 시간을 개선할 수 있음. polling은 helper build dependency나 launchd helper lifecycle 문제가 있을 때 단순한 복구 경로를 제공함.
 - 방지 실패: install-time 또는 daemon lifecycle 가정을 runtime reconciliation logic에 박아 넣는 일을 막음.
-- 명세: `bin/hotspot-proxy-toggle run`은 정확히 한 번 reconcile하고 종료함. LaunchAgent polling은 runtime command 밖에서 설정함.
-- 테스트: LaunchAgent `ProgramArguments`는 `hotspot-proxy-toggle run`을 호출하고, `bin/hotspot-proxy-toggle`에는 persistent loop가 없음.
+- 명세: `bin/hotspot-proxy-toggle run`은 정확히 한 번 reconcile하고 종료함. event helper는 network change event를 debounce하고 `hotspot-proxy-toggle run`을 child process로 호출함. polling LaunchAgent는 fallback 또는 명시적 `HOTSPOT_TRIGGER_MODE=polling` 경로에서 runtime command 밖에 설정함.
+- 테스트: helper LaunchAgent는 helper를 호출하고, helper는 child process로 `hotspot-proxy-toggle run`을 호출함. polling fallback LaunchAgent `ProgramArguments`는 `hotspot-proxy-toggle run`을 호출함. `bin/hotspot-proxy-toggle`에는 persistent loop가 없음.
 
 ## R5: Public Utility 위생
 

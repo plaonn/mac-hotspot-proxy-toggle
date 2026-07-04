@@ -30,43 +30,43 @@ SSID를 정확히 지정하려면 다음처럼 설치합니다.
 PROXY_PORT=1080 HOTSPOT_SSIDS='My Phone Hotspot' ./install.sh
 ```
 
-설치되는 파일은 다음과 같습니다.
+기본 event 설치에서 생성되는 파일은 다음과 같습니다.
 
 ```text
 ~/.local/share/hotspot-proxy-toggle/
 ~/.local/bin/hotspot-proxy-toggle
 ~/.config/hotspot-proxy-toggle.conf
-~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.plist
-```
-
-LaunchAgent는 기본적으로 60초마다 실행됩니다.
-
-```bash
-CHECK_INTERVAL_SECONDS=30 PROXY_PORT=1080 ./install.sh
-```
-
-네트워크 변경 event에 반응하는 helper를 opt-in으로 설치할 수도 있습니다.
-
-```bash
-HOTSPOT_TRIGGER_MODE=event PROXY_PORT=1080 ./install.sh
-```
-
-event helper 모드에서는 polling LaunchAgent 대신 아래 파일을 사용합니다.
-
-```text
 ~/.local/share/hotspot-proxy-toggle/bin/hotspot-proxy-toggle-helper
 ~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.helper.plist
 ```
 
-이 모드는 Swift helper를 빌드해서 별도 LaunchAgent로 실행합니다. helper는 macOS network change event를 debounce한 뒤 기존 `hotspot-proxy-toggle run`을 호출합니다. 프록시 판단과 설정 변경은 계속 single-shot runtime command가 담당합니다.
+기본 설치는 네트워크 변경 event에 반응하는 helper LaunchAgent를 사용합니다. helper는 Swift로 빌드되며, macOS network change event를 debounce한 뒤 기존 `hotspot-proxy-toggle run`을 호출합니다. 프록시 판단과 설정 변경은 계속 single-shot runtime command가 담당합니다.
 
-interval 방식으로 되돌리려면 기본 설치 명령을 다시 실행합니다.
+event helper를 설치할 수 없으면 installer는 자동으로 polling LaunchAgent로 되돌아갑니다. polling fallback은 아래 파일을 사용합니다.
+
+```text
+~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.plist
+```
+
+polling fallback은 기본적으로 60초마다 실행됩니다. polling을 명시적으로 사용하려면 다음처럼 설치합니다.
+
+```bash
+HOTSPOT_TRIGGER_MODE=polling PROXY_PORT=1080 ./install.sh
+```
+
+polling interval을 바꾸려면 다음처럼 설치합니다.
+
+```bash
+HOTSPOT_TRIGGER_MODE=polling CHECK_INTERVAL_SECONDS=30 PROXY_PORT=1080 ./install.sh
+```
+
+event helper를 다시 기본값으로 설치하려면 다음처럼 실행합니다.
 
 ```bash
 PROXY_PORT=1080 ./install.sh
 ```
 
-event helper 설치에는 macOS Swift compiler가 필요합니다. Xcode Command Line Tools가 설치된 환경이면 보통 사용할 수 있습니다.
+event helper 설치에는 macOS Swift compiler가 필요합니다. Xcode Command Line Tools가 설치된 환경이면 보통 사용할 수 있습니다. Swift compiler가 없거나 helper 설치가 실패하면 polling fallback이 설치됩니다.
 
 ## 확인
 

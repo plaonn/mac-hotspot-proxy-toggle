@@ -4,7 +4,7 @@
 
 ## 가까운 후보
 
-- Event-driven helper opt-in mode를 실제 macOS network transition에서 검증하고, 문제가 없으면 기본 trigger mode 전환 여부를 검토.
+- Event-driven 기본 mode를 실제 macOS network transition에서 계속 검증하고, polling fallback diagnostics를 개선.
 - 사용할 수 없는 dependency에 대한 diagnostics 개선.
 
 ## 나중 후보

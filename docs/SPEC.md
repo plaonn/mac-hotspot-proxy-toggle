@@ -27,11 +27,11 @@
 
 Runtime command는 파일 설치, LaunchAgent 생성, persistent loop 실행을 하지 않음.
 
-## Event-driven helper prototype
+## Event-driven helper
 
-`Sources/hotspot-proxy-toggle-helper/main.swift`에는 event-driven helper prototype이 있음.
+`Sources/hotspot-proxy-toggle-helper/main.swift`에는 event-driven helper가 있음.
 
-현재 helper prototype은 아래 역할만 함:
+helper는 아래 역할만 함:
 
 - SystemConfiguration dynamic store network change notification을 관찰함.
 - event burst를 debounce함.
@@ -39,9 +39,9 @@ Runtime command는 파일 설치, LaunchAgent 생성, persistent loop 실행을 
 - `--dry-run`이면 child command에 `DRY_RUN=1`을 전달함.
 - `--once`이면 event loop 없이 child command를 한 번 실행하고 종료함.
 
-helper prototype은 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음.
+helper는 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음.
 
-현재 설치 기본값은 여전히 polling LaunchAgent임. `install.sh`는 helper prototype을 설치하거나 helper LaunchAgent를 생성하지 않음.
+설치 기본값은 여전히 polling LaunchAgent임. `HOTSPOT_TRIGGER_MODE=event`를 명시하면 `install.sh`가 helper binary를 빌드하고 helper LaunchAgent를 설치함.
 
 ## 설정
 
@@ -113,7 +113,7 @@ macOS proxy setting을 켜기 전에 아래 응답을 요구함:
 
 ## 설치
 
-`install.sh`는 아래를 설치함:
+기본 `install.sh`는 아래를 설치함:
 
 ```text
 ~/.local/share/hotspot-proxy-toggle/
@@ -130,6 +130,24 @@ hotspot-proxy-toggle run
 
 기본 polling interval은 60초임.
 
+`HOTSPOT_TRIGGER_MODE=event`로 설치하면 아래 helper LaunchAgent를 설치하고 polling LaunchAgent는 제거함:
+
+```text
+~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.helper.plist
+```
+
+helper LaunchAgent는 `hotspot-proxy-toggle-helper --command <installed-command>`를 실행함. helper는 시작 시 한 번 reconcile하고, 이후 SystemConfiguration network change event를 debounce해서 `hotspot-proxy-toggle run`을 호출함.
+
+event helper tuning key:
+
+```bash
+HELPER_DEBOUNCE_SECONDS=1
+HELPER_MAX_RUNS=3
+HELPER_WINDOW_SECONDS=10
+```
+
+기본 `./install.sh`를 다시 실행하면 helper LaunchAgent를 unload/remove하고 polling LaunchAgent로 되돌림.
+
 ## 제거
 
-`uninstall.sh`는 LaunchAgent를 unload하고, 설치된 binary tree와 command symlink를 제거하며, config file은 유지함.
+`uninstall.sh`는 polling/helper LaunchAgent를 모두 unload하고, 설치된 binary tree와 command symlink를 제거하며, config file은 유지함.

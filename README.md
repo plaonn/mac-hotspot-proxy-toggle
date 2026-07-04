@@ -45,6 +45,29 @@ LaunchAgent는 기본적으로 60초마다 실행됩니다.
 CHECK_INTERVAL_SECONDS=30 PROXY_PORT=1080 ./install.sh
 ```
 
+네트워크 변경 event에 반응하는 helper를 opt-in으로 설치할 수도 있습니다.
+
+```bash
+HOTSPOT_TRIGGER_MODE=event PROXY_PORT=1080 ./install.sh
+```
+
+event helper 모드에서는 polling LaunchAgent 대신 아래 파일을 사용합니다.
+
+```text
+~/.local/share/hotspot-proxy-toggle/bin/hotspot-proxy-toggle-helper
+~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.helper.plist
+```
+
+이 모드는 Swift helper를 빌드해서 별도 LaunchAgent로 실행합니다. helper는 macOS network change event를 debounce한 뒤 기존 `hotspot-proxy-toggle run`을 호출합니다. 프록시 판단과 설정 변경은 계속 single-shot runtime command가 담당합니다.
+
+interval 방식으로 되돌리려면 기본 설치 명령을 다시 실행합니다.
+
+```bash
+PROXY_PORT=1080 ./install.sh
+```
+
+event helper 설치에는 macOS Swift compiler가 필요합니다. Xcode Command Line Tools가 설치된 환경이면 보통 사용할 수 있습니다.
+
 ## 확인
 
 ```bash
@@ -136,7 +159,7 @@ brew install shellcheck
 ./tests/run.sh
 ```
 
-Event-driven helper prototype은 기본 설치 경로에 포함되지 않습니다. 직접 빌드해서 dry-run으로 한 번 실행해 볼 수 있습니다.
+Event-driven helper를 직접 빌드해서 dry-run으로 한 번 실행해 볼 수 있습니다.
 
 ```bash
 ./scripts/build-helper.sh

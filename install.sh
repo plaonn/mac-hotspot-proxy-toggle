@@ -2,14 +2,39 @@
 set -euo pipefail
 
 LABEL="com.github.plaonn.hotspot-proxy-toggle"
+HELPER_LABEL="$LABEL.helper"
 SOURCE_DIR="$(cd "$(/usr/bin/dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 INSTALL_ROOT="${HOTSPOT_PROXY_INSTALL_ROOT:-$HOME/.local/share/hotspot-proxy-toggle}"
 INSTALL_BIN="$INSTALL_ROOT/bin/hotspot-proxy-toggle"
+HELPER_BIN="$INSTALL_ROOT/bin/hotspot-proxy-toggle-helper"
 BIN_LINK="$HOME/.local/bin/hotspot-proxy-toggle"
 CONFIG_PATH="${HOTSPOT_PROXY_CONFIG:-$HOME/.config/hotspot-proxy-toggle.conf}"
 PLIST_PATH="$HOME/Library/LaunchAgents/$LABEL.plist"
+HELPER_PLIST_PATH="$HOME/Library/LaunchAgents/$HELPER_LABEL.plist"
 LOG_DIR="$HOME/Library/Logs"
 CHECK_INTERVAL_SECONDS="${CHECK_INTERVAL_SECONDS:-60}"
+HOTSPOT_TRIGGER_MODE="${HOTSPOT_TRIGGER_MODE:-}"
+HELPER_DEBOUNCE_SECONDS="${HELPER_DEBOUNCE_SECONDS:-1}"
+HELPER_MAX_RUNS="${HELPER_MAX_RUNS:-3}"
+HELPER_WINDOW_SECONDS="${HELPER_WINDOW_SECONDS:-10}"
+
+resolve_trigger_mode() {
+  if [[ -z "$HOTSPOT_TRIGGER_MODE" ]]; then
+    if [[ "${EVENT_HELPER:-0}" == "1" ]]; then
+      HOTSPOT_TRIGGER_MODE="event"
+    else
+      HOTSPOT_TRIGGER_MODE="polling"
+    fi
+  fi
+
+  case "$HOTSPOT_TRIGGER_MODE" in
+    polling|event) ;;
+    *)
+      printf 'unsupported HOTSPOT_TRIGGER_MODE: %s (supported: polling, event)\n' "$HOTSPOT_TRIGGER_MODE" >&2
+      return 64
+      ;;
+  esac
+}
 
 escape_sed_replacement() {
   printf '%s' "$1" | /usr/bin/sed 's/[&|]/\\&/g'
@@ -44,7 +69,7 @@ write_config_if_missing() {
   printf 'Wrote config: %s\n' "$CONFIG_PATH"
 }
 
-write_launch_agent() {
+write_polling_launch_agent() {
   local escaped_bin escaped_interval escaped_log_dir
 
   /bin/mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
@@ -62,6 +87,31 @@ write_launch_agent() {
   printf 'Wrote LaunchAgent: %s\n' "$PLIST_PATH"
 }
 
+write_helper_launch_agent() {
+  local escaped_helper escaped_bin escaped_log_dir
+  local escaped_debounce escaped_max_runs escaped_window
+
+  /bin/mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
+
+  escaped_helper="$(escape_sed_replacement "$HELPER_BIN")"
+  escaped_bin="$(escape_sed_replacement "$INSTALL_BIN")"
+  escaped_log_dir="$(escape_sed_replacement "$LOG_DIR")"
+  escaped_debounce="$(escape_sed_replacement "$HELPER_DEBOUNCE_SECONDS")"
+  escaped_max_runs="$(escape_sed_replacement "$HELPER_MAX_RUNS")"
+  escaped_window="$(escape_sed_replacement "$HELPER_WINDOW_SECONDS")"
+
+  /usr/bin/sed \
+    -e "s|__HELPER_BIN__|$escaped_helper|g" \
+    -e "s|__INSTALL_BIN__|$escaped_bin|g" \
+    -e "s|__LOG_DIR__|$escaped_log_dir|g" \
+    -e "s|__HELPER_DEBOUNCE_SECONDS__|$escaped_debounce|g" \
+    -e "s|__HELPER_MAX_RUNS__|$escaped_max_runs|g" \
+    -e "s|__HELPER_WINDOW_SECONDS__|$escaped_window|g" \
+    "$SOURCE_DIR/launchd/$HELPER_LABEL.plist.in" >"$HELPER_PLIST_PATH"
+
+  printf 'Wrote helper LaunchAgent: %s\n' "$HELPER_PLIST_PATH"
+}
+
 install_files() {
   /bin/mkdir -p "$INSTALL_ROOT/bin" "$HOME/.local/bin"
   /usr/bin/install -m 755 "$SOURCE_DIR/bin/hotspot-proxy-toggle" "$INSTALL_BIN"
@@ -70,18 +120,54 @@ install_files() {
   printf 'Linked command: %s\n' "$BIN_LINK"
 }
 
+install_helper_file() {
+  local output
+
+  output="$(BUILD_DIR="$INSTALL_ROOT/bin" "$SOURCE_DIR/scripts/build-helper.sh")"
+  /bin/chmod 755 "$HELPER_BIN"
+  printf 'Installed helper: %s\n' "$output"
+}
+
+unload_launch_agent() {
+  local plist_path="$1"
+
+  /bin/launchctl bootout "gui/$(/usr/bin/id -u)" "$plist_path" >/dev/null 2>&1 || true
+}
+
 load_launch_agent() {
-  /bin/launchctl bootout "gui/$(/usr/bin/id -u)" "$PLIST_PATH" >/dev/null 2>&1 || true
-  /bin/launchctl bootstrap "gui/$(/usr/bin/id -u)" "$PLIST_PATH"
-  /bin/launchctl kickstart -k "gui/$(/usr/bin/id -u)/$LABEL"
-  printf 'Loaded LaunchAgent: %s\n' "$LABEL"
+  local label="$1"
+  local plist_path="$2"
+  local kickstart="${3:-1}"
+
+  unload_launch_agent "$plist_path"
+  /bin/launchctl bootstrap "gui/$(/usr/bin/id -u)" "$plist_path"
+  if [[ "$kickstart" == "1" ]]; then
+    /bin/launchctl kickstart -k "gui/$(/usr/bin/id -u)/$label"
+  fi
+  printf 'Loaded LaunchAgent: %s\n' "$label"
 }
 
 main() {
+  resolve_trigger_mode
   install_files
+  if [[ "$HOTSPOT_TRIGGER_MODE" == "event" ]]; then
+    install_helper_file
+  fi
   write_config_if_missing
-  write_launch_agent
-  load_launch_agent
+
+  if [[ "$HOTSPOT_TRIGGER_MODE" == "event" ]]; then
+    unload_launch_agent "$PLIST_PATH"
+    /bin/rm -f "$PLIST_PATH"
+    write_helper_launch_agent
+    load_launch_agent "$HELPER_LABEL" "$HELPER_PLIST_PATH" 0
+  else
+    unload_launch_agent "$HELPER_PLIST_PATH"
+    /bin/rm -f "$HELPER_PLIST_PATH"
+    write_polling_launch_agent
+    load_launch_agent "$LABEL" "$PLIST_PATH"
+  fi
+
+  printf 'Trigger mode: %s\n' "$HOTSPOT_TRIGGER_MODE"
 }
 
 main "$@"

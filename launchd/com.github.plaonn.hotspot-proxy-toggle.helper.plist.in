@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.github.plaonn.hotspot-proxy-toggle.helper</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HELPER_BIN__</string>
+    <string>--command</string>
+    <string>__INSTALL_BIN__</string>
+    <string>--debounce</string>
+    <string>__HELPER_DEBOUNCE_SECONDS__</string>
+    <string>--max-runs</string>
+    <string>__HELPER_MAX_RUNS__</string>
+    <string>--window</string>
+    <string>__HELPER_WINDOW_SECONDS__</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/hotspot-proxy-toggle-helper.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/hotspot-proxy-toggle-helper.stderr.log</string>
+</dict>
+</plist>

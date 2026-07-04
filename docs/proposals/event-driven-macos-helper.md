@@ -2,7 +2,7 @@
 
 ## 상태
 
-제안은 승인됐고, `Sources/hotspot-proxy-toggle-helper/main.swift`에 prototype helper를 추가함. 현재 설치 기본값은 바꾸지 않음.
+제안은 승인됐고, `Sources/hotspot-proxy-toggle-helper/main.swift`에 helper를 추가함. 현재 설치 기본값은 polling으로 유지하고, `HOTSPOT_TRIGGER_MODE=event` opt-in 설치 경로를 둠.
 
 ## Root goal
 
@@ -167,13 +167,13 @@ helper는 아래 invariant를 지켜야 함.
 - 수동 실행 또는 별도 실험 install flag로만 helper plist를 생성함.
 - dry-run 또는 log-only mode로 event coalescing을 검증함.
 
-현재 prototype:
+현재 helper:
 
 - `SCDynamicStoreSetNotificationKeys`로 network dynamic store 변화 key pattern을 관찰함.
 - event burst를 debounce하고, child process로 `hotspot-proxy-toggle run`을 호출함.
 - `--dry-run`을 주면 child command에 `DRY_RUN=1`을 전달함.
 - `--once`를 주면 event loop 없이 child command를 한 번 실행하고 종료함.
-- 설치 스크립트와 LaunchAgent 기본값에는 연결되어 있지 않음.
+- 설치 기본값은 polling이지만, 명시적 opt-in으로 helper LaunchAgent를 설치할 수 있음.
 
 수동 빌드:
 
@@ -184,10 +184,11 @@ helper는 아래 invariant를 지켜야 함.
 
 ### Phase 2: opt-in install option
 
-- `install.sh`에 명시적 opt-in만 추가함.
-- 예: `HOTSPOT_TRIGGER_MODE=polling|event`
+- 완료됨.
+- `HOTSPOT_TRIGGER_MODE=event ./install.sh`는 helper binary를 빌드하고 helper LaunchAgent를 설치함.
 - 기본값은 `polling`으로 유지함.
-- uninstall은 helper LaunchAgent와 polling LaunchAgent를 모두 정리할 수 있어야 함.
+- `./install.sh`를 다시 실행하면 polling LaunchAgent로 되돌림.
+- `uninstall.sh`는 helper LaunchAgent와 polling LaunchAgent를 모두 정리함.
 
 ### Phase 3: 기본값 전환 검토
 
@@ -225,13 +226,13 @@ Acceptance:
 
 ## 현재 결론
 
-바로 구현하지 않음. 다음 구현 task를 만든다면 `spike: prototype SCDynamicStore event helper`가 적절함.
+현재는 opt-in 설치 경로까지 구현됨. 다음 구현 task를 만든다면 실제 macOS network transition 검증과 helper 기본값 전환 여부 판단이 적절함.
 
 그 task의 경계:
 
-- 구현은 helper prototype과 log-only 검증까지로 제한함.
-- installer 기본값은 바꾸지 않음.
-- polling LaunchAgent는 유지함.
+- 실제 핫스팟 연결/해제, sleep/wake, proxy endpoint off/on 전환을 검증함.
+- installer 기본값은 검증 전까지 바꾸지 않음.
+- polling LaunchAgent fallback을 유지함.
 - helper가 실제 proxy write를 직접 수행하지 않음.
 
 ## 참고 자료

@@ -20,6 +20,12 @@ struct MenuConfig {
 
         while index < arguments.count {
             let arg = arguments[index]
+            if arg.hasPrefix("--title=") {
+                config.title = String(arg.dropFirst("--title=".count))
+                index += 1
+                continue
+            }
+
             switch arg {
             case "--command":
                 index += 1

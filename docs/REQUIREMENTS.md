@@ -90,5 +90,5 @@
 - 요구사항: `MHP.app`은 사용자가 terminal config 편집 없이 필수 설정과 자동 시작 상태를 관리할 수 있는 Settings window를 제공함.
 - 근거: 초기 설정에 필요한 값은 소수이며, background helper와 menu bar app은 사용자 관점에서 하나의 자동 실행 기능으로 동작해야 함.
 - 방지 실패: 사용자가 proxy hotspot과 관련 없는 DHCP marker, Wi-Fi device, network service 같은 내부 knob를 잘못 설정하거나, background helper만 켜지고 front UI가 꺼지는 분리 상태를 일반 설정으로 만들게 되는 일을 막음.
-- 명세: Settings main surface는 `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, `Start Automatically`만 제공함. `Language` 선택은 Settings window UI에도 즉시 반영함. `Start Automatically`를 켜면 helper LaunchAgent와 menu LaunchAgent를 함께 생성/load하고, 끄면 자동 시작 plist를 제거함. Settings 저장 중 현재 실행 중인 menu app은 종료하지 않음. Advanced에는 troubleshooting용 초 단위 `Proxy Check Timeout`, `Helper Watchdog Interval`만 둠. 저장 후 한 번 `hotspot-proxy-toggle run`을 호출함.
+- 명세: Settings main surface는 `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, `Start Automatically`만 제공함. `Language` 선택은 Settings window UI에도 즉시 반영함. `Start Automatically`를 켜면 helper LaunchAgent와 menu LaunchAgent를 함께 생성/load하고, 끄면 자동 시작 plist를 제거함. Settings 저장 중 현재 실행 중인 menu app은 종료하지 않으며, LaunchAgent 반영과 reconcile 호출은 Settings UI를 영구 block하지 않음. Advanced에는 troubleshooting용 초 단위 `Proxy Check Timeout`, `Helper Watchdog Interval`만 둠. 저장 후 한 번 `hotspot-proxy-toggle run`을 호출함.
 - 테스트: `scripts/validate.sh`는 AppKit build로 Settings code를 컴파일함.

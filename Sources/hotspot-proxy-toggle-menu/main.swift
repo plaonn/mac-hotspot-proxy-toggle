@@ -670,8 +670,15 @@ final class AutomationController {
         process.standardError = Pipe()
 
         do {
+            let finished = DispatchSemaphore(value: 0)
+            process.terminationHandler = { _ in
+                finished.signal()
+            }
             try process.run()
-            process.waitUntilExit()
+            if finished.wait(timeout: .now() + 10) == .timedOut {
+                process.terminate()
+                return 124
+            }
             return process.terminationStatus
         } catch {
             return 127
@@ -836,26 +843,51 @@ final class SettingsWindowController: NSWindowController {
             return
         }
 
-        let configFile = DotenvConfig.load(path: config.configPath)
-        configFile.set("HOTSPOT_SSID", hotspotField.stringValue)
-        configFile.set("PROXY_TYPE", proxyTypePopup.indexOfSelectedItem == 1 ? "http" : "socks5")
-        configFile.set("PROXY_PORT", proxyPortField.stringValue)
-        configFile.set("LANGUAGE", ["auto", "en", "ko"][languagePopup.indexOfSelectedItem])
-        configFile.set("REQUIRE_PROXY_CHECK", "1")
-        configFile.set("PROXY_CHECK_TIMEOUT", timeoutField.stringValue)
-        configFile.set("HELPER_WATCHDOG_SECONDS", watchdogField.stringValue)
+        let command = config.command
+        let configPath = config.configPath
+        let hotspotSSID = hotspotField.stringValue
+        let proxyType = proxyTypePopup.indexOfSelectedItem == 1 ? "http" : "socks5"
+        let proxyPort = proxyPortField.stringValue
+        let language = ["auto", "en", "ko"][languagePopup.indexOfSelectedItem]
+        let proxyCheckTimeout = timeoutField.stringValue
+        let helperWatchdogSeconds = watchdogField.stringValue
+        let startAutomatically = startAutomaticallyCheckbox.state == .on
 
-        do {
-            try configFile.write(path: config.configPath)
-            try AutomationController(
-                command: config.command,
-                helperWatchdogSeconds: watchdogField.stringValue
-            ).setEnabled(startAutomaticallyCheckbox.state == .on)
-            runCommand(argument: "run")
-            close()
-        } catch {
-            showError(String(describing: error))
+        setSaving(true)
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            do {
+                let configFile = DotenvConfig.load(path: configPath)
+                configFile.set("HOTSPOT_SSID", hotspotSSID)
+                configFile.set("PROXY_TYPE", proxyType)
+                configFile.set("PROXY_PORT", proxyPort)
+                configFile.set("LANGUAGE", language)
+                configFile.set("REQUIRE_PROXY_CHECK", "1")
+                configFile.set("PROXY_CHECK_TIMEOUT", proxyCheckTimeout)
+                configFile.set("HELPER_WATCHDOG_SECONDS", helperWatchdogSeconds)
+
+                try configFile.write(path: configPath)
+                try AutomationController(
+                    command: command,
+                    helperWatchdogSeconds: helperWatchdogSeconds
+                ).setEnabled(startAutomatically)
+                self?.runCommand(argument: "run")
+                DispatchQueue.main.async {
+                    self?.close()
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self?.setSaving(false)
+                    self?.showError(String(describing: error))
+                }
+            }
         }
+    }
+
+    private func setSaving(_ saving: Bool) {
+        saveButton.isEnabled = !saving
+        saveButton.title = saving
+            ? (selectedLanguage().resolved == .ko ? "저장 중..." : "Saving...")
+            : (selectedLanguage().resolved == .ko ? "저장" : "Save")
     }
 
     @objc private func openConfig() {

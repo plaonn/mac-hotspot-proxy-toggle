@@ -183,7 +183,7 @@ install_menu_bar_file() {
 }
 
 install_app_bundle() {
-  local app_output
+  local app_output app_path
 
   if [[ "$HOTSPOT_APP" != "1" ]]; then
     return 0
@@ -196,9 +196,16 @@ install_app_bundle() {
     return 1
   fi
 
+  app_path="$(printf '%s\n' "$app_output" | /usr/bin/tail -n 1)"
+  if [[ ! -d "$app_path" ]]; then
+    printf '%s\n' "$app_output" >&2
+    printf 'App diagnostic: build output did not end with an app bundle path\n' >&2
+    return 1
+  fi
+
   /bin/mkdir -p "$APP_INSTALL_DIR"
   /bin/rm -rf "$APP_INSTALL_PATH"
-  /bin/cp -R "$app_output" "$APP_INSTALL_PATH"
+  /bin/cp -R "$app_path" "$APP_INSTALL_PATH"
   APP_INSTALLED=1
   printf 'Installed app: %s\n' "$APP_INSTALL_PATH"
 }

@@ -18,6 +18,7 @@ fi
 /bin/mkdir -p "$BUILD_DIR"
 
 swiftc \
+  -suppress-warnings \
   "$ROOT_DIR/Sources/hotspot-proxy-toggle-menu/main.swift" \
   -framework AppKit \
   -o "$OUTPUT"

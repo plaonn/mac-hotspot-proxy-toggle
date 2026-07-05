@@ -7,7 +7,7 @@
 - Event-driven 기본 mode와 hotspot-limited endpoint watchdog을 실제 macOS network transition에서 계속 검증.
 - 사용할 수 없는 dependency에 대한 diagnostics 개선.
 - Menu bar companion을 실제 macOS menu bar 사용에서 계속 검증.
-- 실제 사용에서 필요하면 app settings window를 추가해 start/stop, launch at login, open config 같은 제어를 GUI로 제공.
+- Settings window의 자동 시작 toggle과 실제 macOS login 재시작 흐름을 계속 검증.
 
 ## 나중 후보
 

@@ -67,16 +67,14 @@ HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
 ```bash
 PROXY_TYPE=socks5
 PROXY_PORT=1080
-HOTSPOT_SSIDS=''
-HOTSPOT_DHCP_MARKERS='ANDROID_METERED'
-STRICT_SSID=0
+HOTSPOT_SSID='My Phone'
 REQUIRE_PROXY_CHECK=1
 ```
 
 - `PROXY_TYPE=socks5`: macOS SOCKS firewall proxy를 설정합니다.
-- `PROXY_TYPE=http`: Web Proxy와 Secure Web Proxy를 함께 설정합니다.
-- `HOTSPOT_SSIDS`: 정확히 매칭할 SSID allow-list입니다.
-- `HOTSPOT_DHCP_MARKERS`: Android hotspot처럼 DHCP marker로 감지할 때 사용합니다.
+- `PROXY_TYPE=http`: HTTP/HTTPS Web Proxy를 설정합니다. Web Proxy와 Secure Web Proxy를 같은 host/port로 함께 켭니다.
+- `HOTSPOT_SSID`: 정확히 매칭할 단일 휴대폰 핫스팟 SSID입니다.
+- `REQUIRE_PROXY_CHECK=1`: proxy endpoint가 실제 응답할 때만 macOS proxy setting을 켭니다.
 
 전체 설정 설명은 [docs/CONFIG.md](docs/CONFIG.md)에 있습니다.
 
@@ -93,6 +91,8 @@ Menu bar item은 기본적으로 아이콘만 표시합니다. macOS template ic
 | 대각선이 있는 채워진 휴대폰 | 핫스팟은 감지됐지만 프록시를 사용할 수 없습니다. |
 
 Menu bar, `MHP.app`, notification 동작은 [docs/UI.md](docs/UI.md)에 있습니다.
+
+`MHP.app`의 menu에서 `Settings...`를 열면 `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, `Start Automatically`를 GUI로 설정할 수 있습니다.
 
 ## 확인
 

@@ -13,9 +13,9 @@
 
 현재 network service support:
 
-- 하나의 설정된 network service에 대한 macOS `networksetup` proxy setting. 기본값은 `Wi-Fi`.
+- 하나의 Wi-Fi network service에 대한 macOS `networksetup` proxy setting. `NETWORK_SERVICE` override가 없으면 Wi-Fi device에 대응하는 service name을 자동 탐지함.
 - `socks5`: SOCKS firewall proxy.
-- `http`: Web Proxy와 Secure Web Proxy를 같은 host/port로 함께 설정.
+- `http`: Web Proxy와 Secure Web Proxy를 같은 host/port로 함께 설정. Settings UI에서는 `HTTP/HTTPS Web Proxy`로 표시함.
 
 ## Runtime Command 동작
 
@@ -56,6 +56,7 @@ Companion은 아래 역할만 함:
 - UI state JSON이 아직 없거나 읽을 수 없으면 `hotspot-proxy-toggle status`를 child process로 호출해 상태 menu를 갱신함.
 - 사용자가 menu에서 `Reconcile Now`를 선택하면 `hotspot-proxy-toggle run`을 한 번 호출함.
 - `Refresh Status`는 proxy setting을 변경하지 않고 `status`만 다시 호출함.
+- `Settings...`는 필수 설정, 언어, 자동 시작을 관리하는 Settings window를 엶.
 - `Quit MHP`는 `hotspot-proxy-toggle off`를 호출해 proxy setting을 끄고, helper LaunchAgent와 menu LaunchAgent를 unload함.
 
 Companion은 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음. Primary 상태 표시는 UI state JSON에서 파생함. Fallback 상태 표시는 `status=hotspot`, `status=not-hotspot`, `status=not-wifi`, `status=no-router`, `proxy_check=...-missing` 같은 runtime command output에서 파생함.
@@ -116,7 +117,6 @@ Companion tuning key:
 ```bash
 MENU_BAR_REFRESH_SECONDS=30
 MENU_BAR_TITLE=
-MENU_BAR_LOCALE=auto
 HOTSPOT_PROXY_UI_STATE=~/Library/Application Support/hotspot-proxy-toggle/status.json
 ```
 
@@ -138,6 +138,25 @@ App bundle 원칙:
 - helper plist가 없고 polling LaunchAgent plist가 있으면 polling LaunchAgent를 다시 bootstrap/kickstart함.
 - app launch가 hotspot/proxy decision이나 macOS proxy write policy를 직접 구현하지 않음.
 
+## Settings Window
+
+`MHP.app` menu의 `Settings...`는 아래 main settings를 제공함:
+
+- `Hotspot SSID`: 단일 SSID exact match.
+- `Proxy Type`: `SOCKS5` 또는 `HTTP/HTTPS Web Proxy`.
+- `Proxy Port`: 현재 핫스팟 router IP에서 proxy server가 listen하는 port.
+- `Language`: `System Default`, `English`, `한국어`.
+- `Start Automatically`: helper LaunchAgent와 menu LaunchAgent를 함께 켜거나 끄는 단일 사용자 toggle.
+
+Advanced settings:
+
+- `Proxy Check Timeout`
+- `Watchdog Interval`
+
+Settings 저장은 whitelisted config key만 갱신하고, legacy `HOTSPOT_SSIDS`, `HOTSPOT_DHCP_MARKERS`, `STRICT_SSID`, `NOTIFICATION_LOCALE` key는 저장 시 제거함. 저장 후 현재 network state에 대해 `hotspot-proxy-toggle run`을 한 번 호출함.
+
+Settings window는 hotspot/proxy decision이나 macOS proxy write policy를 재구현하지 않음.
+
 ## 설정
 
 기본 config path:
@@ -149,19 +168,19 @@ App bundle 원칙:
 지원 key:
 
 ```bash
-NETWORK_SERVICE='Wi-Fi'
+NETWORK_SERVICE=''
 WIFI_DEVICE=''
 PROXY_TYPE=socks5
 PROXY_PORT=1080
-HOTSPOT_SSIDS=''
-HOTSPOT_DHCP_MARKERS='ANDROID_METERED'
-STRICT_SSID=0
+HOTSPOT_SSID=''
 REQUIRE_PROXY_CHECK=1
 PROXY_CHECK_TIMEOUT=1
 DRY_RUN=0
 NOTIFY_ON_CHANGE=0
-NOTIFICATION_LOCALE=auto
+LANGUAGE=auto
 ```
+
+Config file은 제한된 `KEY=value` 형식으로 읽음. 빈 줄과 `#` comment를 허용하고, unquoted, single-quoted, double-quoted value를 지원함. Runtime은 config file을 shell script로 `source`하지 않고 지원 key만 allow-list로 읽음.
 
 Notification 상태 파일 기본 경로:
 
@@ -176,13 +195,12 @@ Notification 상태 파일 기본 경로:
 유틸리티는 아래 순서로 판단함:
 
 1. `WIFI_DEVICE`가 설정되어 있지 않으면 `networksetup -listallhardwareports`로 Wi-Fi device를 찾음.
-2. `route -n get default`에서 default route interface를 읽음.
-3. default interface가 Wi-Fi device가 아니면 hotspot path를 종료함.
-4. `ipconfig getsummary <wifi-device>`에서 DHCP summary를 읽음.
-5. `Router`와 `SSID`를 추출함.
-6. 설정에 따라 exact SSID allow-list 또는 DHCP marker로 hotspot status를 판단함.
-
-`STRICT_SSID=1`이면 DHCP marker fallback을 비활성화함.
+2. `NETWORK_SERVICE`가 설정되어 있지 않으면 `networksetup -listnetworkserviceorder`에서 Wi-Fi device에 대응하는 service name을 찾음.
+3. `route -n get default`에서 default route interface를 읽음.
+4. default interface가 Wi-Fi device가 아니면 hotspot path를 종료함.
+5. `ipconfig getsummary <wifi-device>`에서 DHCP summary를 읽음.
+6. `Router`와 `SSID`를 추출함.
+7. `SSID`가 단일 `HOTSPOT_SSID`와 exact match일 때만 hotspot status로 판단함.
 
 ## 프록시 확인
 
@@ -226,7 +244,7 @@ Notification은 아래 원칙을 따름:
 - proxy setting 변경이 없어도 active Wi-Fi가 설정한 hotspot이 아니거나 endpoint availability가 이전 `run`과 달라지면 표시함.
 - default route가 Wi-Fi가 아니거나 Wi-Fi router가 아직 확인되지 않은 상태에서는 notification을 표시하지 않고 state file만 갱신함.
 - 중복 알림을 막기 위해 마지막 notification state를 local state file에 저장함. `HOTSPOT_PROXY_STATE`로 경로를 override할 수 있음.
-- `NOTIFICATION_LOCALE=auto`이면 macOS 언어 설정을 읽어 한국어 환경에서는 한국어 문구를 사용하고, 그 외에는 영어 문구를 사용함. `en` 또는 `ko`로 고정할 수 있음.
+- `LANGUAGE=auto`이면 macOS 언어 설정을 읽어 한국어 환경에서는 한국어 문구를 사용하고, 그 외에는 영어 문구를 사용함. `en` 또는 `ko`로 고정할 수 있음.
 - Notification title은 3개 상태로 나뉨: hotspot proxy active는 `✅ Hotspot Proxy On`, hotspot은 맞지만 endpoint가 unavailable이면 `⚠️ Hotspot Proxy Unavailable`, active Wi-Fi가 설정한 hotspot이 아니면 `ℹ️ Hotspot Proxy Idle`. 한국어 locale에서는 각각 `✅ 핫스팟 프록시 켜짐`, `⚠️ 핫스팟 프록시 사용 불가`, `ℹ️ 핫스팟 대기`를 사용함.
 - Notification sender는 가능한 경우 `MHP.app` bundle executable이므로 notification은 고정 MHP app icon으로 표시될 수 있음. 상태별 custom notification icon은 지정하지 않음. Notification title의 emoji는 상태 구분 보조 신호로 유지함.
 - 라우터 IP, SSID, local path 같은 환경별 값을 message에 포함하지 않음.
@@ -277,7 +295,7 @@ HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
 ~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.menu.plist
 ```
 
-`MENU_BAR_REFRESH_SECONDS`로 상태 refresh 간격을, `MENU_BAR_TITLE`로 menu bar title을, `MENU_BAR_LOCALE=auto|en|ko`로 menu language를 바꿀 수 있음. `MENU_BAR_TITLE` 기본값은 빈 문자열이며 이 경우 status item은 icon-only로 표시됨.
+`MENU_BAR_REFRESH_SECONDS`로 상태 refresh 간격을, `MENU_BAR_TITLE`로 menu bar title을 바꿀 수 있음. Menu language는 config의 `LANGUAGE=auto|en|ko`를 따름. `MENU_BAR_TITLE` 기본값은 빈 문자열이며 이 경우 status item은 icon-only로 표시됨.
 
 `HOTSPOT_NOTIFICATION_SENDER`로 notification sender executable path를 override할 수 있음. 기본값은 `~/Applications/MHP.app/Contents/MacOS/hotspot-proxy-toggle-menu`임.
 

@@ -24,7 +24,6 @@ APP_INSTALL_DIR="${HOTSPOT_APP_INSTALL_DIR:-$HOME/Applications}"
 APP_INSTALL_PATH="$APP_INSTALL_DIR/MHP.app"
 MENU_BAR_REFRESH_SECONDS="${MENU_BAR_REFRESH_SECONDS:-30}"
 MENU_BAR_TITLE="${MENU_BAR_TITLE:-}"
-MENU_BAR_LOCALE="${MENU_BAR_LOCALE:-auto}"
 MENU_BAR_INSTALLED=0
 APP_INSTALLED=0
 HELPER_DEBOUNCE_SECONDS="${HELPER_DEBOUNCE_SECONDS:-1}"
@@ -66,17 +65,15 @@ write_config_if_missing() {
   umask 077
   {
     printf '# hotspot-proxy-toggle config\n'
-    printf 'NETWORK_SERVICE=%q\n' "${NETWORK_SERVICE:-Wi-Fi}"
+    printf 'NETWORK_SERVICE=%q\n' "${NETWORK_SERVICE:-}"
     printf 'WIFI_DEVICE=%q\n' "${WIFI_DEVICE:-}"
     printf 'PROXY_TYPE=%q\n' "${PROXY_TYPE:-socks5}"
     printf 'PROXY_PORT=%q\n' "$PROXY_PORT"
-    printf 'HOTSPOT_SSIDS=%q\n' "${HOTSPOT_SSIDS:-}"
-    printf 'HOTSPOT_DHCP_MARKERS=%q\n' "${HOTSPOT_DHCP_MARKERS:-ANDROID_METERED}"
-    printf 'STRICT_SSID=%q\n' "${STRICT_SSID:-0}"
+    printf 'HOTSPOT_SSID=%q\n' "${HOTSPOT_SSID:-}"
     printf 'REQUIRE_PROXY_CHECK=%q\n' "${REQUIRE_PROXY_CHECK:-1}"
     printf 'PROXY_CHECK_TIMEOUT=%q\n' "${PROXY_CHECK_TIMEOUT:-1}"
     printf 'NOTIFY_ON_CHANGE=%q\n' "${NOTIFY_ON_CHANGE:-0}"
-    printf 'NOTIFICATION_LOCALE=%q\n' "${NOTIFICATION_LOCALE:-auto}"
+    printf 'LANGUAGE=%q\n' "${LANGUAGE:-auto}"
   } >"$CONFIG_PATH"
   printf 'Wrote config: %s\n' "$CONFIG_PATH"
 }
@@ -127,26 +124,26 @@ write_helper_launch_agent() {
 }
 
 write_menu_bar_launch_agent() {
-  local escaped_menu escaped_bin escaped_log_dir escaped_state escaped_refresh escaped_title escaped_locale
+  local escaped_menu escaped_bin escaped_config escaped_log_dir escaped_state escaped_refresh escaped_title
 
   /bin/mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
 
   escaped_menu="$(escape_sed_replacement "$MENU_BAR_BIN")"
   escaped_bin="$(escape_sed_replacement "$INSTALL_BIN")"
+  escaped_config="$(escape_sed_replacement "$CONFIG_PATH")"
   escaped_log_dir="$(escape_sed_replacement "$LOG_DIR")"
   escaped_state="$(escape_sed_replacement "$UI_STATE_PATH")"
   escaped_refresh="$(escape_sed_replacement "$MENU_BAR_REFRESH_SECONDS")"
   escaped_title="$(escape_sed_replacement "$MENU_BAR_TITLE")"
-  escaped_locale="$(escape_sed_replacement "$MENU_BAR_LOCALE")"
 
   /usr/bin/sed \
     -e "s|__MENU_BIN__|$escaped_menu|g" \
     -e "s|__INSTALL_BIN__|$escaped_bin|g" \
+    -e "s|__CONFIG_PATH__|$escaped_config|g" \
     -e "s|__LOG_DIR__|$escaped_log_dir|g" \
     -e "s|__UI_STATE_PATH__|$escaped_state|g" \
     -e "s|__MENU_REFRESH_SECONDS__|$escaped_refresh|g" \
     -e "s|__MENU_BAR_TITLE__|$escaped_title|g" \
-    -e "s|__MENU_BAR_LOCALE__|$escaped_locale|g" \
     "$SOURCE_DIR/launchd/$MENU_BAR_LABEL.plist.in" >"$MENU_BAR_PLIST_PATH"
 
   printf 'Wrote menu bar LaunchAgent: %s\n' "$MENU_BAR_PLIST_PATH"

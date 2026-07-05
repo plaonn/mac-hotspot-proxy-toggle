@@ -56,17 +56,16 @@ assert_contains() {
 reset_runtime_state() {
   CONFIG_PATH="$TEST_TMP/missing.conf"
   LOG_PATH="$TEST_TMP/test.log"
-  NETWORK_SERVICE="Wi-Fi"
+  NETWORK_SERVICE=""
   WIFI_DEVICE="en0"
-  HOTSPOT_SSIDS=""
-  HOTSPOT_DHCP_MARKERS="ANDROID_METERED"
+  HOTSPOT_SSID=""
   PROXY_TYPE="socks5"
   PROXY_PORT="1080"
-  STRICT_SSID="0"
   REQUIRE_PROXY_CHECK="1"
   PROXY_CHECK_TIMEOUT="1"
   DRY_RUN="0"
   NOTIFY_ON_CHANGE="0"
+  LANGUAGE="en"
   NOTIFICATION_LOCALE="en"
   STATE_PATH="$TEST_TMP/notify-state"
   UI_STATE_PATH="$TEST_TMP/status.json"
@@ -91,6 +90,10 @@ default_interface() {
 
 ipconfig_summary() {
   printf '%s\n' "$MOCK_IPCONFIG_SUMMARY"
+}
+
+wifi_network_service_from_device() {
+  printf 'Wi-Fi\n'
 }
 
 current_proxy_state() {
@@ -141,8 +144,7 @@ hotspot_by_exact_ssid() {
   local output rc
 
   reset_runtime_state
-  HOTSPOT_SSIDS="My Phone,Other Phone"
-  STRICT_SSID="1"
+  HOTSPOT_SSID="My Phone"
   MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.1\nSSID : My Phone'
 
   set +e
@@ -156,22 +158,21 @@ hotspot_by_exact_ssid() {
     assert_contains "$output" "router=172.20.10.1"
 }
 
-hotspot_by_dhcp_marker_fallback() {
+missing_hotspot_ssid_does_not_match() {
   local output rc
 
   reset_runtime_state
-  HOTSPOT_SSIDS=""
-  STRICT_SSID="0"
-  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.1\nSSID : Unknown\nANDROID_METERED'
+  HOTSPOT_SSID=""
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.1\nSSID : My Phone'
 
   set +e
   output="$(evaluate)"
   rc="$?"
   set -e
 
-  [[ "$rc" == "0" ]] &&
-    assert_contains "$output" "status=hotspot" &&
-    assert_contains "$output" "reason=dhcp-marker"
+  [[ "$rc" == "1" ]] &&
+    assert_contains "$output" "status=not-hotspot" &&
+    assert_contains "$output" "reason=no-hotspot-ssid"
 }
 
 reject_non_wifi_default_route() {
@@ -191,13 +192,12 @@ reject_non_wifi_default_route() {
     assert_contains "$output" "default_interface=en9"
 }
 
-dhcp_marker_fallback_respects_strict_ssid() {
+ssid_mismatch_is_not_hotspot() {
   local output rc
 
   reset_runtime_state
-  HOTSPOT_SSIDS="Other Phone"
-  STRICT_SSID="1"
-  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.1\nSSID : Unknown\nANDROID_METERED'
+  HOTSPOT_SSID="Other Phone"
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.1\nSSID : My Phone'
 
   set +e
   output="$(evaluate)"
@@ -209,11 +209,41 @@ dhcp_marker_fallback_respects_strict_ssid() {
     assert_contains "$output" "reason=no-match"
 }
 
+auto_detects_network_service_from_wifi_device() {
+  reset_runtime_state
+  NETWORK_SERVICE=""
+  WIFI_DEVICE="en0"
+
+  ensure_network_service
+
+  [[ "$NETWORK_SERVICE" == "Wi-Fi" ]]
+}
+
+config_parser_loads_known_keys_without_executing_shell() {
+  reset_runtime_state
+  CONFIG_PATH="$TEST_TMP/config-parser.conf"
+  cat >"$CONFIG_PATH" <<EOF
+HOTSPOT_SSID='My Phone'
+PROXY_TYPE='http'
+PROXY_PORT='8080'
+LANGUAGE='ko'
+UNKNOWN=\$(touch "$TEST_TMP/should-not-exist")
+EOF
+
+  load_config
+
+  [[ "$HOTSPOT_SSID" == "My Phone" ]] &&
+    [[ "$PROXY_TYPE" == "http" ]] &&
+    [[ "$PROXY_PORT" == "8080" ]] &&
+    [[ "$LANGUAGE" == "ko" ]] &&
+    [[ ! -e "$TEST_TMP/should-not-exist" ]]
+}
+
 run_disables_proxy_when_endpoint_unavailable() {
   local output
 
   reset_runtime_state
-  HOTSPOT_SSIDS="My Phone"
+  HOTSPOT_SSID="My Phone"
   MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.42\nSSID : My Phone'
   PROXY_AVAILABLE=0
 
@@ -230,7 +260,7 @@ run_disables_proxy_when_endpoint_unavailable() {
 
 run_enables_proxy_for_available_endpoint() {
   reset_runtime_state
-  HOTSPOT_SSIDS="My Phone"
+  HOTSPOT_SSID="My Phone"
   MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.99\nSSID : My Phone'
   PROXY_AVAILABLE=1
 
@@ -243,7 +273,7 @@ run_enables_proxy_for_available_endpoint() {
 run_enables_http_web_proxy_backend() {
   reset_runtime_state
   PROXY_TYPE="http"
-  HOTSPOT_SSIDS="My Phone"
+  HOTSPOT_SSID="My Phone"
   MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.88\nSSID : My Phone'
   PROXY_AVAILABLE=1
 
@@ -254,7 +284,7 @@ run_enables_http_web_proxy_backend() {
 
 notification_is_opt_in_for_proxy_enable() {
   reset_runtime_state
-  HOTSPOT_SSIDS="My Phone"
+  HOTSPOT_SSID="My Phone"
   MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.99\nSSID : My Phone'
   PROXY_AVAILABLE=1
 
@@ -266,7 +296,7 @@ notification_is_opt_in_for_proxy_enable() {
 run_notifies_when_proxy_enabled_and_opted_in() {
   reset_runtime_state
   NOTIFY_ON_CHANGE=1
-  HOTSPOT_SSIDS="My Phone"
+  HOTSPOT_SSID="My Phone"
   MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.99\nSSID : My Phone'
   PROXY_AVAILABLE=1
 
@@ -279,7 +309,7 @@ run_notifies_when_proxy_enabled_and_opted_in() {
 run_notifies_when_endpoint_unavailable_and_opted_in() {
   reset_runtime_state
   NOTIFY_ON_CHANGE=1
-  HOTSPOT_SSIDS="My Phone"
+  HOTSPOT_SSID="My Phone"
   MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.42\nSSID : My Phone'
   PROXY_AVAILABLE=0
 
@@ -292,7 +322,7 @@ run_notifies_when_ssid_context_changes_and_proxy_already_off() {
   reset_runtime_state
   NOTIFY_ON_CHANGE=1
   MOCK_PROXY_CHANGE_ON_OFF=0
-  HOTSPOT_SSIDS="Phone"
+  HOTSPOT_SSID="Phone"
   printf '%s\n' 'off:socks5:status=not-hotspot wifi_device=en0 router=172.20.10.77 ssid=Coffee reason=no-match' >"$STATE_PATH"
   MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.77\nSSID : Office'
 
@@ -305,9 +335,9 @@ run_notifies_when_ssid_context_changes_and_proxy_already_off() {
 run_uses_korean_idle_notification_copy() {
   reset_runtime_state
   NOTIFY_ON_CHANGE=1
-  NOTIFICATION_LOCALE=ko
+  LANGUAGE=ko
   MOCK_PROXY_CHANGE_ON_OFF=0
-  HOTSPOT_SSIDS="Phone"
+  HOTSPOT_SSID="Phone"
   printf '%s\n' 'off:socks5:status=not-hotspot wifi_device=en0 router=172.20.10.77 ssid=Coffee reason=no-match' >"$STATE_PATH"
   MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.77\nSSID : Office'
 
@@ -344,8 +374,8 @@ run_records_no_router_without_notification() {
 run_uses_korean_notification_locale() {
   reset_runtime_state
   NOTIFY_ON_CHANGE=1
-  NOTIFICATION_LOCALE=ko
-  HOTSPOT_SSIDS="My Phone"
+  LANGUAGE=ko
+  HOTSPOT_SSID="My Phone"
   MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.99\nSSID : My Phone'
   PROXY_AVAILABLE=1
 
@@ -358,7 +388,7 @@ run_does_not_repeat_context_notification_without_change() {
   reset_runtime_state
   NOTIFY_ON_CHANGE=1
   MOCK_PROXY_CHANGE_ON_OFF=0
-  HOTSPOT_SSIDS="Phone"
+  HOTSPOT_SSID="Phone"
   printf '%s\n' 'off:socks5:status=not-hotspot wifi_device=en0 router=172.20.10.77 ssid=Office reason=no-match' >"$STATE_PATH"
   MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.77\nSSID : Office'
 
@@ -369,7 +399,7 @@ run_does_not_repeat_context_notification_without_change() {
 
 run_disables_all_supported_backends_when_not_hotspot() {
   reset_runtime_state
-  HOTSPOT_SSIDS="Other Phone"
+  HOTSPOT_SSID="Other Phone"
   MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.77\nSSID : My Phone'
 
   do_run >/dev/null
@@ -416,10 +446,25 @@ unsupported_notification_locale_is_rejected() {
     assert_contains "$(<"$TEST_TMP/unsupported-locale.out")" "unsupported NOTIFICATION_LOCALE: fr (supported: auto, en, ko)"
 }
 
+unsupported_language_is_rejected() {
+  reset_runtime_state
+  LANGUAGE="fr"
+
+  set +e
+  validate_config >"$TEST_TMP/unsupported-language.out" 2>&1
+  local rc="$?"
+  set -e
+
+  [[ "$rc" == "64" ]] &&
+    assert_contains "$(<"$TEST_TMP/unsupported-language.out")" "unsupported LANGUAGE: fr (supported: auto, en, ko)"
+}
+
 run_test "hotspot by exact SSID" hotspot_by_exact_ssid
-run_test "hotspot by DHCP marker fallback" hotspot_by_dhcp_marker_fallback
+run_test "missing hotspot SSID does not match" missing_hotspot_ssid_does_not_match
 run_test "reject non-Wi-Fi default route" reject_non_wifi_default_route
-run_test "strict SSID disables DHCP marker fallback" dhcp_marker_fallback_respects_strict_ssid
+run_test "SSID mismatch is not hotspot" ssid_mismatch_is_not_hotspot
+run_test "auto-detects network service from Wi-Fi device" auto_detects_network_service_from_wifi_device
+run_test "config parser loads known keys without executing shell" config_parser_loads_known_keys_without_executing_shell
 run_test "run disables proxy when endpoint is unavailable" run_disables_proxy_when_endpoint_unavailable
 run_test "run enables proxy for available endpoint" run_enables_proxy_for_available_endpoint
 run_test "run enables HTTP web proxy backend" run_enables_http_web_proxy_backend
@@ -436,6 +481,7 @@ run_test "run disables all supported backends when not hotspot" run_disables_all
 run_test "off command disables all supported backends" off_command_disables_all_supported_backends
 run_test "unsupported proxy type is rejected" unsupported_proxy_type_is_rejected
 run_test "unsupported notification locale is rejected" unsupported_notification_locale_is_rejected
+run_test "unsupported language is rejected" unsupported_language_is_rejected
 
 printf '\n%s passed, %s failed\n' "$PASS_COUNT" "$FAIL_COUNT"
 [[ "$FAIL_COUNT" == "0" ]]

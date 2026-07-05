@@ -4,6 +4,7 @@ import Foundation
 
 struct MenuConfig {
     var command = defaultCommandPath()
+    var configPath = defaultConfigPath()
     var statePath = defaultStatePath()
     var refreshSeconds = 30.0
     var title = ""
@@ -28,6 +29,12 @@ struct MenuConfig {
                     throw UsageError("missing value for --command")
                 }
                 config.command = arguments[index]
+            case "--config":
+                index += 1
+                guard index < arguments.count else {
+                    throw UsageError("missing value for --config")
+                }
+                config.configPath = arguments[index]
             case "--refresh":
                 index += 1
                 guard index < arguments.count, let value = Double(arguments[index]), value > 0 else {
@@ -369,6 +376,482 @@ struct UIState: Decodable {
     }
 }
 
+struct AppSettings {
+    var hotspotSSID = ""
+    var proxyType = "socks5"
+    var proxyPort = "1080"
+    var language = "auto"
+    var proxyCheckTimeout = "1"
+    var helperWatchdogSeconds = "60"
+}
+
+final class DotenvConfig {
+    private var lines: [String]
+    private var values: [String: String]
+
+    private init(lines: [String], values: [String: String]) {
+        self.lines = lines
+        self.values = values
+    }
+
+    static func load(path: String) -> DotenvConfig {
+        let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        let lines = text.isEmpty ? [] : text.components(separatedBy: .newlines)
+        var values: [String: String] = [:]
+
+        for line in lines {
+            guard let (key, value) = parse(line: line) else {
+                continue
+            }
+            values[key] = value
+        }
+
+        return DotenvConfig(lines: lines, values: values)
+    }
+
+    func appSettings() -> AppSettings {
+        AppSettings(
+            hotspotSSID: values["HOTSPOT_SSID"] ?? "",
+            proxyType: values["PROXY_TYPE"] ?? "socks5",
+            proxyPort: values["PROXY_PORT"] ?? "1080",
+            language: values["LANGUAGE"] ?? values["NOTIFICATION_LOCALE"] ?? "auto",
+            proxyCheckTimeout: values["PROXY_CHECK_TIMEOUT"] ?? "1",
+            helperWatchdogSeconds: values["HELPER_WATCHDOG_SECONDS"] ?? "60"
+        )
+    }
+
+    func set(_ key: String, _ value: String) {
+        values[key] = value
+    }
+
+    func write(path: String) throws {
+        let writeKeys = [
+            "HOTSPOT_SSID",
+            "PROXY_TYPE",
+            "PROXY_PORT",
+            "LANGUAGE",
+            "REQUIRE_PROXY_CHECK",
+            "PROXY_CHECK_TIMEOUT",
+            "HELPER_WATCHDOG_SECONDS",
+        ]
+        var seen = Set<String>()
+        var output: [String] = []
+
+        for line in lines {
+            if let (key, _) = DotenvConfig.parse(line: line), writeKeys.contains(key) {
+                output.append("\(key)=\(DotenvConfig.quote(values[key] ?? ""))")
+                seen.insert(key)
+            } else if let (key, _) = DotenvConfig.parse(line: line), legacyKeysToDrop.contains(key) {
+                continue
+            } else if !line.isEmpty {
+                output.append(line)
+            }
+        }
+
+        for key in writeKeys where !seen.contains(key) {
+            if let value = values[key] {
+                output.append("\(key)=\(DotenvConfig.quote(value))")
+            }
+        }
+
+        let directory = (path as NSString).deletingLastPathComponent
+        try FileManager.default.createDirectory(
+            atPath: directory,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        try (output.joined(separator: "\n") + "\n").write(toFile: path, atomically: true, encoding: .utf8)
+    }
+
+    private static func parse(line: String) -> (String, String)? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, !trimmed.hasPrefix("#"), let equals = trimmed.firstIndex(of: "=") else {
+            return nil
+        }
+
+        let key = String(trimmed[..<equals]).trimmingCharacters(in: .whitespaces)
+        guard key.range(of: #"^[A-Z_][A-Z0-9_]*$"#, options: .regularExpression) != nil else {
+            return nil
+        }
+
+        let rawValue = String(trimmed[trimmed.index(after: equals)...]).trimmingCharacters(in: .whitespaces)
+        return (key, unquote(rawValue))
+    }
+
+    private static func unquote(_ raw: String) -> String {
+        if raw.count >= 2, raw.hasPrefix("'"), raw.hasSuffix("'") {
+            return String(raw.dropFirst().dropLast()).replacingOccurrences(of: "'\\''", with: "'")
+        }
+        if raw.count >= 2, raw.hasPrefix("\""), raw.hasSuffix("\"") {
+            return String(raw.dropFirst().dropLast())
+        }
+        return raw.replacingOccurrences(of: "\\ ", with: " ")
+    }
+
+    private static func quote(_ value: String) -> String {
+        "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+    }
+
+    private var legacyKeysToDrop: Set<String> {
+        [
+            "HOTSPOT_SSIDS",
+            "HOTSPOT_DHCP_MARKERS",
+            "STRICT_SSID",
+            "NOTIFICATION_LOCALE",
+        ]
+    }
+}
+
+final class AutomationController {
+    private let command: String
+    private let helperWatchdogSeconds: String
+
+    init(command: String, helperWatchdogSeconds: String) {
+        self.command = command
+        self.helperWatchdogSeconds = helperWatchdogSeconds
+    }
+
+    var isEnabled: Bool {
+        FileManager.default.fileExists(atPath: helperPlistPath)
+            && FileManager.default.fileExists(atPath: menuPlistPath)
+    }
+
+    func setEnabled(_ enabled: Bool) throws {
+        if enabled {
+            try writeLaunchAgents()
+            _ = runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(helperLabel)"])
+            _ = runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(menuLabel)"])
+            _ = runLaunchctl(arguments: ["bootstrap", "gui/\(getuid())", helperPlistPath])
+            _ = runLaunchctl(arguments: ["kickstart", "-k", "gui/\(getuid())/\(helperLabel)"])
+            _ = runLaunchctl(arguments: ["bootstrap", "gui/\(getuid())", menuPlistPath])
+            _ = runLaunchctl(arguments: ["kickstart", "-k", "gui/\(getuid())/\(menuLabel)"])
+        } else {
+            _ = runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(helperLabel)"])
+            _ = runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(menuLabel)"])
+            try? FileManager.default.removeItem(atPath: helperPlistPath)
+            try? FileManager.default.removeItem(atPath: menuPlistPath)
+        }
+    }
+
+    private func writeLaunchAgents() throws {
+        guard FileManager.default.isExecutableFile(atPath: helperBinaryPath) else {
+            throw UsageError("helper binary not found: \(helperBinaryPath)")
+        }
+        guard FileManager.default.isExecutableFile(atPath: command) else {
+            throw UsageError("command not found: \(command)")
+        }
+        guard let menuBinaryPath = Bundle.main.executablePath,
+              FileManager.default.isExecutableFile(atPath: menuBinaryPath) else {
+            throw UsageError("menu binary not found")
+        }
+
+        try FileManager.default.createDirectory(
+            atPath: launchAgentsDirectory,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        try FileManager.default.createDirectory(
+            atPath: logDirectory,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+
+        try helperPlist(helper: helperBinaryPath, command: command)
+            .write(toFile: helperPlistPath, atomically: true, encoding: .utf8)
+        try menuPlist(menu: menuBinaryPath, command: command)
+            .write(toFile: menuPlistPath, atomically: true, encoding: .utf8)
+    }
+
+    private func helperPlist(helper: String, command: String) -> String {
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+          <key>Label</key>
+          <string>\(helperLabel)</string>
+          <key>ProgramArguments</key>
+          <array>
+            <string>\(xmlEscape(helper))</string>
+            <string>--command</string>
+            <string>\(xmlEscape(command))</string>
+            <string>--debounce</string>
+            <string>1</string>
+            <string>--max-runs</string>
+            <string>3</string>
+            <string>--window</string>
+            <string>10</string>
+            <string>--watchdog</string>
+            <string>\(xmlEscape(helperWatchdogSeconds))</string>
+          </array>
+          <key>RunAtLoad</key>
+          <true/>
+          <key>KeepAlive</key>
+          <true/>
+          <key>StandardOutPath</key>
+          <string>\(xmlEscape(logDirectory))/hotspot-proxy-toggle-helper.stdout.log</string>
+          <key>StandardErrorPath</key>
+          <string>\(xmlEscape(logDirectory))/hotspot-proxy-toggle-helper.stderr.log</string>
+        </dict>
+        </plist>
+        """
+    }
+
+    private func menuPlist(menu: String, command: String) -> String {
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+          <key>Label</key>
+          <string>\(menuLabel)</string>
+          <key>ProgramArguments</key>
+          <array>
+            <string>\(xmlEscape(menu))</string>
+            <string>--command</string>
+            <string>\(xmlEscape(command))</string>
+            <string>--config</string>
+            <string>\(xmlEscape(defaultConfigPath()))</string>
+            <string>--state</string>
+            <string>\(xmlEscape(defaultStatePath()))</string>
+            <string>--refresh</string>
+            <string>30</string>
+            <string>--locale</string>
+            <string>auto</string>
+          </array>
+          <key>RunAtLoad</key>
+          <true/>
+          <key>StandardOutPath</key>
+          <string>\(xmlEscape(logDirectory))/hotspot-proxy-toggle-menu.stdout.log</string>
+          <key>StandardErrorPath</key>
+          <string>\(xmlEscape(logDirectory))/hotspot-proxy-toggle-menu.stderr.log</string>
+        </dict>
+        </plist>
+        """
+    }
+
+    private var launchAgentsDirectory: String {
+        "\(homeDirectory())/Library/LaunchAgents"
+    }
+
+    private var logDirectory: String {
+        "\(homeDirectory())/Library/Logs"
+    }
+
+    private var helperBinaryPath: String {
+        "\(homeDirectory())/.local/share/hotspot-proxy-toggle/bin/hotspot-proxy-toggle-helper"
+    }
+
+    private var helperPlistPath: String {
+        "\(launchAgentsDirectory)/\(helperLabel).plist"
+    }
+
+    private var menuPlistPath: String {
+        "\(launchAgentsDirectory)/\(menuLabel).plist"
+    }
+
+    private var helperLabel: String {
+        "com.github.plaonn.hotspot-proxy-toggle.helper"
+    }
+
+    private var menuLabel: String {
+        "com.github.plaonn.hotspot-proxy-toggle.menu"
+    }
+
+    private func runLaunchctl(arguments: [String]) -> Int32 {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = arguments
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus
+        } catch {
+            return 127
+        }
+    }
+}
+
+final class SettingsWindowController: NSWindowController {
+    private let config: MenuConfig
+    private let hotspotField = NSTextField()
+    private let proxyTypePopup = NSPopUpButton()
+    private let proxyPortField = NSTextField()
+    private let languagePopup = NSPopUpButton()
+    private let startAutomaticallyCheckbox = NSButton(checkboxWithTitle: "Start Automatically", target: nil, action: nil)
+    private let timeoutField = NSTextField()
+    private let watchdogField = NSTextField()
+
+    init(config: MenuConfig) {
+        self.config = config
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 330),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "MHP Settings"
+        window.center()
+        super.init(window: window)
+        buildContent()
+        loadValues()
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    private func buildContent() {
+        guard let contentView = window?.contentView else {
+            return
+        }
+
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.spacing = 12
+        stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: contentView.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+        ])
+
+        proxyTypePopup.addItems(withTitles: ["SOCKS5", "HTTP/HTTPS Web Proxy"])
+        languagePopup.addItems(withTitles: ["System Default", "English", "한국어"])
+
+        stack.addArrangedSubview(row(label: "Hotspot SSID", control: hotspotField))
+        stack.addArrangedSubview(row(label: "Proxy Type", control: proxyTypePopup))
+        stack.addArrangedSubview(row(label: "Proxy Port", control: proxyPortField))
+        stack.addArrangedSubview(row(label: "Language", control: languagePopup))
+        stack.addArrangedSubview(startAutomaticallyCheckbox)
+        stack.addArrangedSubview(separator(label: "Advanced"))
+        stack.addArrangedSubview(row(label: "Proxy Check Timeout", control: timeoutField))
+        stack.addArrangedSubview(row(label: "Watchdog Interval", control: watchdogField))
+
+        let buttons = NSStackView()
+        buttons.orientation = .horizontal
+        buttons.spacing = 8
+        buttons.alignment = .centerY
+        buttons.distribution = .fillEqually
+
+        let openConfigButton = NSButton(title: "Open Config", target: self, action: #selector(openConfig))
+        let openLogButton = NSButton(title: "Open Log", target: self, action: #selector(openLog))
+        let saveButton = NSButton(title: "Save", target: self, action: #selector(save))
+        saveButton.keyEquivalent = "\r"
+        buttons.addArrangedSubview(openConfigButton)
+        buttons.addArrangedSubview(openLogButton)
+        buttons.addArrangedSubview(saveButton)
+        stack.addArrangedSubview(buttons)
+    }
+
+    private func row(label: String, control: NSView) -> NSStackView {
+        let labelView = NSTextField(labelWithString: label)
+        labelView.widthAnchor.constraint(equalToConstant: 150).isActive = true
+        let row = NSStackView(views: [labelView, control])
+        row.orientation = .horizontal
+        row.spacing = 10
+        row.alignment = .centerY
+        control.widthAnchor.constraint(greaterThanOrEqualToConstant: 190).isActive = true
+        return row
+    }
+
+    private func separator(label: String) -> NSView {
+        let view = NSTextField(labelWithString: label)
+        view.font = NSFont.boldSystemFont(ofSize: NSFont.smallSystemFontSize)
+        view.textColor = .secondaryLabelColor
+        return view
+    }
+
+    private func loadValues() {
+        let settings = DotenvConfig.load(path: config.configPath).appSettings()
+        hotspotField.stringValue = settings.hotspotSSID
+        proxyTypePopup.selectItem(at: settings.proxyType == "http" ? 1 : 0)
+        proxyPortField.stringValue = settings.proxyPort
+        languagePopup.selectItem(at: ["auto", "en", "ko"].firstIndex(of: settings.language) ?? 0)
+        timeoutField.stringValue = settings.proxyCheckTimeout
+        watchdogField.stringValue = settings.helperWatchdogSeconds
+        startAutomaticallyCheckbox.state = AutomationController(
+            command: config.command,
+            helperWatchdogSeconds: settings.helperWatchdogSeconds
+        ).isEnabled ? .on : .off
+    }
+
+    @objc private func save() {
+        guard validatePositiveInteger(proxyPortField.stringValue, name: "Proxy Port", min: 1, max: 65535),
+              validatePositiveInteger(timeoutField.stringValue, name: "Proxy Check Timeout", min: 1, max: 60),
+              validatePositiveInteger(watchdogField.stringValue, name: "Watchdog Interval", min: 0, max: 3600) else {
+            return
+        }
+
+        let configFile = DotenvConfig.load(path: config.configPath)
+        configFile.set("HOTSPOT_SSID", hotspotField.stringValue)
+        configFile.set("PROXY_TYPE", proxyTypePopup.indexOfSelectedItem == 1 ? "http" : "socks5")
+        configFile.set("PROXY_PORT", proxyPortField.stringValue)
+        configFile.set("LANGUAGE", ["auto", "en", "ko"][languagePopup.indexOfSelectedItem])
+        configFile.set("REQUIRE_PROXY_CHECK", "1")
+        configFile.set("PROXY_CHECK_TIMEOUT", timeoutField.stringValue)
+        configFile.set("HELPER_WATCHDOG_SECONDS", watchdogField.stringValue)
+
+        do {
+            try configFile.write(path: config.configPath)
+            try AutomationController(
+                command: config.command,
+                helperWatchdogSeconds: watchdogField.stringValue
+            ).setEnabled(startAutomaticallyCheckbox.state == .on)
+            runCommand(argument: "run")
+            close()
+        } catch {
+            showError(String(describing: error))
+        }
+    }
+
+    @objc private func openConfig() {
+        NSWorkspace.shared.open(URL(fileURLWithPath: config.configPath))
+    }
+
+    @objc private func openLog() {
+        NSWorkspace.shared.open(URL(fileURLWithPath: "\(homeDirectory())/Library/Logs/hotspot-proxy-toggle.log"))
+    }
+
+    private func validatePositiveInteger(_ rawValue: String, name: String, min: Int, max: Int) -> Bool {
+        guard let value = Int(rawValue), value >= min, value <= max else {
+            showError("\(name) must be between \(min) and \(max).")
+            return false
+        }
+        return true
+    }
+
+    private func showError(_ message: String) {
+        let alert = NSAlert()
+        alert.messageText = "Could not save settings"
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.runModal()
+    }
+
+    private func runCommand(argument: String) {
+        let process = Process()
+        if config.command.contains("/") {
+            process.executableURL = URL(fileURLWithPath: config.command)
+            process.arguments = [argument]
+        } else {
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            process.arguments = [config.command, argument]
+        }
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        try? process.run()
+    }
+}
+
 final class MenuBarApp: NSObject, NSApplicationDelegate {
     private let config: MenuConfig
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -382,6 +865,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     private var isRefreshing = false
     private var stateWatcher: DispatchSourceFileSystemObject?
     private var stateDirectoryWatcher: DispatchSourceFileSystemObject?
+    private var settingsWindowController: SettingsWindowController?
 
     init(config: MenuConfig) {
         self.config = config
@@ -406,12 +890,14 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
             button.image = MenuBarIcon.image(for: ProxySummary.checking.iconStyle)
             button.imagePosition = config.title.isEmpty ? .imageOnly : .imageLeft
             button.imageScaling = .scaleProportionallyDown
-            button.toolTip = ProxySummary.checking.tooltip(locale: config.locale)
+            button.toolTip = ProxySummary.checking.tooltip(locale: effectiveLocale())
         }
 
         statusMenuItem.isEnabled = false
 
         menu.addItem(statusMenuItem)
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: menuText(en: "Settings...", ko: "설정..."), action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: menuText(en: "Refresh Status", ko: "상태 새로고침"), action: #selector(refreshStatusFromMenu), keyEquivalent: "r"))
         menu.addItem(NSMenuItem(title: menuText(en: "Reconcile Now", ko: "지금 동기화"), action: #selector(reconcileNow), keyEquivalent: ""))
@@ -427,6 +913,15 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
 
     @objc private func refreshStatusFromMenu() {
         refreshStatus()
+    }
+
+    @objc private func openSettings() {
+        if settingsWindowController == nil {
+            settingsWindowController = SettingsWindowController(config: config)
+        }
+        settingsWindowController?.showWindow(nil)
+        settingsWindowController?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func refreshStatus() {
@@ -472,17 +967,18 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     }
 
     private func setChecking() {
-        statusMenuItem.title = ProxySummary.checking.statusText(locale: config.locale)
+        statusMenuItem.title = ProxySummary.checking.statusText(locale: effectiveLocale())
         statusItem.button?.image = MenuBarIcon.image(for: ProxySummary.checking.iconStyle)
-        statusItem.button?.toolTip = ProxySummary.checking.tooltip(locale: config.locale)
+        statusItem.button?.toolTip = ProxySummary.checking.tooltip(locale: effectiveLocale())
     }
 
     private func apply(summary: ProxySummary) {
-        statusMenuItem.title = summary.statusText(locale: config.locale)
+        let locale = effectiveLocale()
+        statusMenuItem.title = summary.statusText(locale: locale)
         statusItem.button?.title = config.title
         statusItem.button?.image = MenuBarIcon.image(for: summary.iconStyle)
         statusItem.button?.imagePosition = config.title.isEmpty ? .imageOnly : .imageLeft
-        statusItem.button?.toolTip = summary.tooltip(locale: config.locale)
+        statusItem.button?.toolTip = summary.tooltip(locale: locale)
     }
 
     private func readStateOrRefresh() {
@@ -690,12 +1186,21 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     }
 
     private func menuText(en: String, ko: String) -> String {
-        switch config.locale.resolved {
+        switch effectiveLocale().resolved {
         case .ko:
             return ko
         case .auto, .en:
             return en
         }
+    }
+
+    private func effectiveLocale() -> MenuLocale {
+        if config.locale != .auto {
+            return config.locale
+        }
+
+        let language = DotenvConfig.load(path: config.configPath).appSettings().language
+        return MenuLocale(rawValue: language) ?? .auto
     }
 }
 
@@ -705,6 +1210,10 @@ func defaultCommandPath() -> String {
         return installedPath
     }
     return "hotspot-proxy-toggle"
+}
+
+func defaultConfigPath() -> String {
+    "\(homeDirectory())/.config/hotspot-proxy-toggle.conf"
 }
 
 func defaultStatePath() -> String {
@@ -741,6 +1250,15 @@ func homeDirectory() -> String {
     FileManager.default.homeDirectoryForCurrentUser.path
 }
 
+func xmlEscape(_ value: String) -> String {
+    value
+        .replacingOccurrences(of: "&", with: "&amp;")
+        .replacingOccurrences(of: "\"", with: "&quot;")
+        .replacingOccurrences(of: "'", with: "&apos;")
+        .replacingOccurrences(of: "<", with: "&lt;")
+        .replacingOccurrences(of: ">", with: "&gt;")
+}
+
 func printUsage() {
     print(
         """
@@ -749,6 +1267,7 @@ func printUsage() {
 
         Options:
           --command PATH     Command to invoke with 'status' or 'run'.
+          --config PATH      Config file path.
           --refresh SECS    Status refresh interval. Default: 30.
           --state PATH      UI state JSON path.
           --title TEXT      Menu bar title. Default: icon only.

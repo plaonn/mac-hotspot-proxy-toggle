@@ -67,16 +67,14 @@ Core values:
 ```bash
 PROXY_TYPE=socks5
 PROXY_PORT=1080
-HOTSPOT_SSIDS=''
-HOTSPOT_DHCP_MARKERS='ANDROID_METERED'
-STRICT_SSID=0
+HOTSPOT_SSID='My Phone'
 REQUIRE_PROXY_CHECK=1
 ```
 
 - `PROXY_TYPE=socks5`: configures the macOS SOCKS firewall proxy.
-- `PROXY_TYPE=http`: configures Web Proxy and Secure Web Proxy together.
-- `HOTSPOT_SSIDS`: exact SSID allow-list.
-- `HOTSPOT_DHCP_MARKERS`: fallback hotspot detection marker, useful for Android hotspots.
+- `PROXY_TYPE=http`: configures HTTP/HTTPS Web Proxy by enabling Web Proxy and Secure Web Proxy on the same host/port.
+- `HOTSPOT_SSID`: exact single phone hotspot SSID.
+- `REQUIRE_PROXY_CHECK=1`: enables macOS proxy settings only when the proxy endpoint responds.
 
 See [docs/CONFIG.md](docs/CONFIG.md) for all settings.
 
@@ -93,6 +91,8 @@ The menu bar item is icon-only by default. It follows macOS template icon behavi
 | Filled phone with slash | Hotspot detected, but proxy is unavailable |
 
 See [docs/UI.md](docs/UI.md) for menu bar, `MHP.app`, and notification behavior.
+
+From the `MHP.app` menu, open `Settings...` to configure `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, and `Start Automatically` in the GUI.
 
 ## Check
 

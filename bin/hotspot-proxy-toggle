@@ -7,18 +7,17 @@ STATE_PATH="${HOTSPOT_PROXY_STATE:-$HOME/Library/Application Support/hotspot-pro
 UI_STATE_PATH="${HOTSPOT_PROXY_UI_STATE:-$HOME/Library/Application Support/hotspot-proxy-toggle/status.json}"
 NOTIFICATION_SENDER="${HOTSPOT_NOTIFICATION_SENDER:-$HOME/Applications/MHP.app/Contents/MacOS/hotspot-proxy-toggle-menu}"
 
-NETWORK_SERVICE="${NETWORK_SERVICE:-Wi-Fi}"
+NETWORK_SERVICE="${NETWORK_SERVICE:-}"
 WIFI_DEVICE="${WIFI_DEVICE:-}"
-HOTSPOT_SSIDS="${HOTSPOT_SSIDS:-}"
-HOTSPOT_DHCP_MARKERS="${HOTSPOT_DHCP_MARKERS:-ANDROID_METERED}"
+HOTSPOT_SSID="${HOTSPOT_SSID:-}"
 PROXY_TYPE="${PROXY_TYPE:-socks5}"
 PROXY_PORT="${PROXY_PORT:-}"
-STRICT_SSID="${STRICT_SSID:-0}"
 REQUIRE_PROXY_CHECK="${REQUIRE_PROXY_CHECK:-1}"
 PROXY_CHECK_TIMEOUT="${PROXY_CHECK_TIMEOUT:-1}"
 DRY_RUN="${DRY_RUN:-0}"
 NOTIFY_ON_CHANGE="${NOTIFY_ON_CHANGE:-0}"
-NOTIFICATION_LOCALE="${NOTIFICATION_LOCALE:-auto}"
+LANGUAGE="${LANGUAGE:-}"
+NOTIFICATION_LOCALE="${NOTIFICATION_LOCALE:-}"
 PROXY_STATE_CHANGED=0
 
 usage() {
@@ -37,16 +36,14 @@ Required:
   PROXY_PORT=1080
 
 Optional:
-  HOTSPOT_SSIDS='My Phone,Other Phone'
-  HOTSPOT_DHCP_MARKERS='ANDROID_METERED'
-  STRICT_SSID=1
+  HOTSPOT_SSID='My Phone'
   REQUIRE_PROXY_CHECK=1
   PROXY_CHECK_TIMEOUT=1
-  NETWORK_SERVICE='Wi-Fi'
+  NETWORK_SERVICE='Wi-Fi' # override only; auto-detected by default
   WIFI_DEVICE='en0'
   DRY_RUN=1
   NOTIFY_ON_CHANGE=1
-  NOTIFICATION_LOCALE=auto
+  LANGUAGE=auto
   HOTSPOT_PROXY_STATE="$HOME/Library/Application Support/hotspot-proxy-toggle/state"
   HOTSPOT_PROXY_UI_STATE="$HOME/Library/Application Support/hotspot-proxy-toggle/status.json"
   HOTSPOT_NOTIFICATION_SENDER="$HOME/Applications/MHP.app/Contents/MacOS/hotspot-proxy-toggle-menu"
@@ -60,25 +57,83 @@ log() {
 
 load_config() {
   if [[ -f "$CONFIG_PATH" ]]; then
-    # shellcheck disable=SC1090
-    source "$CONFIG_PATH"
+    load_config_file "$CONFIG_PATH"
   fi
 
-  NETWORK_SERVICE="${NETWORK_SERVICE:-Wi-Fi}"
+  NETWORK_SERVICE="${NETWORK_SERVICE:-}"
   WIFI_DEVICE="${WIFI_DEVICE:-}"
-  HOTSPOT_SSIDS="${HOTSPOT_SSIDS:-}"
-  HOTSPOT_DHCP_MARKERS="${HOTSPOT_DHCP_MARKERS:-ANDROID_METERED}"
+  HOTSPOT_SSID="${HOTSPOT_SSID:-}"
   PROXY_TYPE="${PROXY_TYPE:-socks5}"
   PROXY_PORT="${PROXY_PORT:-}"
-  STRICT_SSID="${STRICT_SSID:-0}"
   REQUIRE_PROXY_CHECK="${REQUIRE_PROXY_CHECK:-1}"
   PROXY_CHECK_TIMEOUT="${PROXY_CHECK_TIMEOUT:-1}"
   DRY_RUN="${DRY_RUN:-0}"
   NOTIFY_ON_CHANGE="${NOTIFY_ON_CHANGE:-0}"
-  NOTIFICATION_LOCALE="${NOTIFICATION_LOCALE:-auto}"
+  LANGUAGE="${LANGUAGE:-${NOTIFICATION_LOCALE:-auto}}"
+  if [[ "$LANGUAGE" != "auto" ]]; then
+    NOTIFICATION_LOCALE="$LANGUAGE"
+  else
+    NOTIFICATION_LOCALE="${NOTIFICATION_LOCALE:-auto}"
+  fi
   STATE_PATH="${HOTSPOT_PROXY_STATE:-${STATE_PATH:-$HOME/Library/Application Support/hotspot-proxy-toggle/state}}"
   UI_STATE_PATH="${HOTSPOT_PROXY_UI_STATE:-${UI_STATE_PATH:-$HOME/Library/Application Support/hotspot-proxy-toggle/status.json}}"
   NOTIFICATION_SENDER="${HOTSPOT_NOTIFICATION_SENDER:-${NOTIFICATION_SENDER:-$HOME/Applications/MHP.app/Contents/MacOS/hotspot-proxy-toggle-menu}}"
+}
+
+load_config_file() {
+  local path="$1"
+  local line trimmed key raw value
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    trimmed="$(trim "$line")"
+    [[ -z "$trimmed" || "$trimmed" == \#* ]] && continue
+    [[ "$trimmed" == *=* ]] || continue
+
+    key="$(trim "${trimmed%%=*}")"
+    raw="$(trim "${trimmed#*=}")"
+    [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ ]] || continue
+    value="$(parse_config_value "$raw")"
+
+    case "$key" in
+      NETWORK_SERVICE) NETWORK_SERVICE="$value" ;;
+      WIFI_DEVICE) WIFI_DEVICE="$value" ;;
+      HOTSPOT_SSID) HOTSPOT_SSID="$value" ;;
+      PROXY_TYPE) PROXY_TYPE="$value" ;;
+      PROXY_PORT) PROXY_PORT="$value" ;;
+      REQUIRE_PROXY_CHECK) REQUIRE_PROXY_CHECK="$value" ;;
+      PROXY_CHECK_TIMEOUT) PROXY_CHECK_TIMEOUT="$value" ;;
+      DRY_RUN) DRY_RUN="$value" ;;
+      NOTIFY_ON_CHANGE) NOTIFY_ON_CHANGE="$value" ;;
+      LANGUAGE) LANGUAGE="$value" ;;
+      NOTIFICATION_LOCALE) NOTIFICATION_LOCALE="$value" ;;
+      HOTSPOT_PROXY_STATE) STATE_PATH="$value" ;;
+      HOTSPOT_PROXY_UI_STATE) UI_STATE_PATH="$value" ;;
+      HOTSPOT_NOTIFICATION_SENDER) NOTIFICATION_SENDER="$value" ;;
+    esac
+  done <"$path"
+}
+
+parse_config_value() {
+  local raw="$1"
+  local value
+
+  if [[ "${#raw}" -ge 2 && "$raw" == \'* && "$raw" == *\' ]]; then
+    value="${raw:1:${#raw}-2}"
+    value="${value//\'\\\'\'/\'}"
+    printf '%s' "$value"
+    return 0
+  fi
+
+  if [[ "${#raw}" -ge 2 && "$raw" == \"* && "$raw" == *\" ]]; then
+    value="${raw:1:${#raw}-2}"
+    value="${value//\\\"/\"}"
+    value="${value//\\\\/\\}"
+    printf '%s' "$value"
+    return 0
+  fi
+
+  value="${raw//\\ / }"
+  printf '%s' "$value"
 }
 
 validate_config() {
@@ -94,6 +149,14 @@ validate_config() {
     auto|en|ko) ;;
     *)
       printf 'unsupported NOTIFICATION_LOCALE: %s (supported: auto, en, ko)\n' "$NOTIFICATION_LOCALE" >&2
+      return 64
+      ;;
+  esac
+
+  case "$LANGUAGE" in
+    auto|en|ko) ;;
+    *)
+      printf 'unsupported LANGUAGE: %s (supported: auto, en, ko)\n' "$LANGUAGE" >&2
       return 64
       ;;
   esac
@@ -117,6 +180,51 @@ wifi_device_from_hardware_ports() {
       /^Hardware Port:/ { in_wifi = 0 }
       in_wifi && /^Device:/ { print $2; exit }
     '
+}
+
+wifi_network_service_from_device() {
+  local dev="$1"
+
+  /usr/sbin/networksetup -listnetworkserviceorder |
+    /usr/bin/awk -v dev="$dev" '
+      /^\([0-9]+\) / {
+        service = $0
+        sub(/^\([0-9]+\) /, "", service)
+        sub(/^\*/, "", service)
+        next
+      }
+      index($0, "Device: " dev ")") > 0 {
+        print service
+        exit
+      }
+    '
+}
+
+ensure_network_service() {
+  local wifi_dev="${WIFI_DEVICE:-}"
+  local service
+
+  if [[ -n "$NETWORK_SERVICE" ]]; then
+    return 0
+  fi
+
+  if [[ -z "$wifi_dev" ]]; then
+    wifi_dev="$(wifi_device_from_hardware_ports)"
+  fi
+
+  if [[ -z "$wifi_dev" ]]; then
+    log "network service unavailable: no Wi-Fi device"
+    return 1
+  fi
+
+  service="$(wifi_network_service_from_device "$wifi_dev")"
+  if [[ -z "$service" ]]; then
+    log "network service unavailable for Wi-Fi device $wifi_dev"
+    return 1
+  fi
+
+  WIFI_DEVICE="$wifi_dev"
+  NETWORK_SERVICE="$service"
 }
 
 default_interface() {
@@ -608,7 +716,7 @@ set_all_supported_proxies_off() {
 
 evaluate() {
   local wifi_dev="${WIFI_DEVICE:-}"
-  local def_if summary router ssid reason is_hotspot
+  local def_if summary router ssid reason
 
   if [[ -z "$wifi_dev" ]]; then
     wifi_dev="$(wifi_device_from_hardware_ports)"
@@ -618,6 +726,7 @@ evaluate() {
     printf 'status=not-wifi reason=no-wifi-device\n'
     return 2
   fi
+  WIFI_DEVICE="$wifi_dev"
 
   def_if="$(default_interface)"
   if [[ "$def_if" != "$wifi_dev" ]]; then
@@ -634,18 +743,12 @@ evaluate() {
     return 1
   fi
 
-  is_hotspot=0
   reason="no-match"
 
-  if [[ -n "$HOTSPOT_SSIDS" && -n "$ssid" ]] && csv_contains_exact "$HOTSPOT_SSIDS" "$ssid"; then
-    is_hotspot=1
+  if [[ -z "$HOTSPOT_SSID" ]]; then
+    reason="no-hotspot-ssid"
+  elif [[ -n "$ssid" && "$ssid" == "$HOTSPOT_SSID" ]]; then
     reason="ssid"
-  elif [[ "$STRICT_SSID" != "1" && -n "$HOTSPOT_DHCP_MARKERS" ]] && csv_marker_in_text "$HOTSPOT_DHCP_MARKERS" "$summary"; then
-    is_hotspot=1
-    reason="dhcp-marker"
-  fi
-
-  if [[ "$is_hotspot" == "1" ]]; then
     printf 'status=hotspot reason=%s wifi_device=%s router=%s ssid=%q\n' "$reason" "$wifi_dev" "$router" "${ssid:-unknown}"
     return 0
   fi
@@ -684,7 +787,11 @@ do_status() {
     fi
   fi
 
-  current_proxy_state
+  if ensure_network_service; then
+    current_proxy_state
+  else
+    printf 'network_service=unavailable\n'
+  fi
 }
 
 do_run() {
@@ -706,6 +813,12 @@ do_run() {
   printf '%s\n' "$result"
 
   if [[ "$rc" != "0" ]]; then
+    ensure_network_service || {
+      write_ui_state error network_service_unavailable
+      record_reconcile_state "off:$PROXY_TYPE:$result:network-service-unavailable"
+      printf 'status=network-service-unavailable action=none\n'
+      return 0
+    }
     set_all_supported_proxies_off
     case "$result" in
       status=not-hotspot*)
@@ -732,12 +845,24 @@ do_run() {
   if [[ "$REQUIRE_PROXY_CHECK" == "1" ]] && ! proxy_endpoint_available "$router" "$PROXY_PORT"; then
     printf 'status=proxy-unavailable proxy_type=%s router=%s port=%s action=off\n' "$PROXY_TYPE" "$router" "$PROXY_PORT"
     log "$(proxy_display_name) proxy unavailable at $router:$PROXY_PORT"
+    ensure_network_service || {
+      write_ui_state error network_service_unavailable
+      record_reconcile_state "off:$PROXY_TYPE:$result:proxy-unavailable:network-service-unavailable"
+      printf 'status=network-service-unavailable action=none\n'
+      return 0
+    }
     set_all_supported_proxies_off
     write_ui_state unavailable
     notify_reconcile_change "off:$PROXY_TYPE:$result:proxy-unavailable" "$(notification_title unavailable)" "$(unavailable_notification_body)"
     return 0
   fi
 
+  ensure_network_service || {
+    write_ui_state error network_service_unavailable
+    record_reconcile_state "on:$PROXY_TYPE:$result:network-service-unavailable"
+    printf 'status=network-service-unavailable action=none\n'
+    return 0
+  }
   set_proxy_on "$router"
   write_ui_state on
   notify_reconcile_change "on:$PROXY_TYPE:$result" "$(notification_title on)" "$(active_notification_body)"
@@ -747,6 +872,12 @@ do_off() {
   PROXY_STATE_CHANGED=0
   load_config
   validate_config
+  ensure_network_service || {
+    write_ui_state error network_service_unavailable
+    record_reconcile_state "off:$PROXY_TYPE:manual:network-service-unavailable"
+    printf 'status=network-service-unavailable action=none\n'
+    return 0
+  }
   set_all_supported_proxies_off
   write_ui_state off manual
   record_reconcile_state "off:$PROXY_TYPE:manual"

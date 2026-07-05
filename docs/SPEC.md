@@ -140,7 +140,7 @@ Notification은 아래 원칙을 따름:
 
 ## 설치
 
-기본 `install.sh`는 아래 공통 파일을 설치함:
+기본 source installer인 `install.sh`는 아래 공통 파일을 설치함:
 
 ```text
 ~/.local/share/hotspot-proxy-toggle/
@@ -183,6 +183,16 @@ hotspot-proxy-toggle run
 ```
 
 기본 polling interval은 60초임. 기본 `./install.sh`를 다시 실행하면 event helper 설치를 다시 시도함.
+
+패키지 매니저용 `make install PREFIX=<prefix>`는 사용자 home directory를 직접 변경하지 않고 아래 파일만 설치함:
+
+```text
+<prefix>/bin/hotspot-proxy-toggle
+<prefix>/libexec/hotspot-proxy-toggle-helper
+<prefix>/etc/hotspot-proxy-toggle.conf.example
+```
+
+이 prefix install 경로는 config 생성, LaunchAgent 생성, `launchctl` load를 수행하지 않음. Homebrew 같은 패키지 매니저는 service definition 또는 caveats에서 사용자별 config와 service activation을 안내해야 함.
 
 ## 제거
 

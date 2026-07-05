@@ -7,7 +7,8 @@ VERSION="${1:-}"
 FORMULA_NAME="hotspot-proxy-toggle"
 TAP_NAME="plaonn/tap"
 TAP_DIR="${HOMEBREW_TAP_DIR:-$ROOT_DIR/../homebrew-tap}"
-FORMULA_PATH="$TAP_DIR/Formula/$FORMULA_NAME.rb"
+FORMULA_REL_PATH="Formula/$FORMULA_NAME.rb"
+FORMULA_PATH="$TAP_DIR/$FORMULA_REL_PATH"
 RUN_HOMEBREW_CHECKS="${RUN_HOMEBREW_CHECKS:-1}"
 
 usage() {
@@ -125,7 +126,7 @@ push_tap_update() {
 
   update_formula "$(release_tarball_url)" "$(sha256_for_url "$(release_tarball_url)")"
 
-  if run_git "$TAP_DIR" diff --quiet -- "$FORMULA_PATH"; then
+  if run_git "$TAP_DIR" diff --quiet -- "$FORMULA_REL_PATH"; then
     printf 'Formula already points at %s\n' "$VERSION"
     return 0
   fi
@@ -133,7 +134,7 @@ push_tap_update() {
   brew style "$FORMULA_PATH"
 
   formula_version="${VERSION#v}"
-  run_git "$TAP_DIR" add "$FORMULA_PATH"
+  run_git "$TAP_DIR" add "$FORMULA_REL_PATH"
   run_git "$TAP_DIR" commit -m "Update $FORMULA_NAME to $formula_version"
   run_git "$TAP_DIR" push origin main
 }

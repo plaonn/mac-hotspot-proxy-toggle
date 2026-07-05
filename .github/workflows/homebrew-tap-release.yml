@@ -76,11 +76,13 @@ jobs:
           formula_path, url, sha256 = ARGV
           text = File.read(formula_path)
 
-          updated = text.sub(%r{url "https://github\.com/plaonn/mac-hotspot-proxy-toggle/archive/refs/tags/[^"]+\.tar\.gz"}, %(url "#{url}"))
-          abort "formula url not found" if updated == text
+          url_pattern = %r{url "https://github\.com/plaonn/mac-hotspot-proxy-toggle/archive/refs/tags/[^"]+\.tar\.gz"}
+          abort "formula url not found" unless text.match?(url_pattern)
+          updated = text.sub(url_pattern, %(url "#{url}"))
 
-          updated_sha = updated.sub(/sha256 "[0-9a-f]{64}"/, %(sha256 "#{sha256}"))
-          abort "formula sha256 not found" if updated_sha == updated
+          sha_pattern = /sha256 "[0-9a-f]{64}"/
+          abort "formula sha256 not found" unless updated.match?(sha_pattern)
+          updated_sha = updated.sub(sha_pattern, %(sha256 "#{sha256}"))
 
           File.write(formula_path, updated_sha)
           RUBY

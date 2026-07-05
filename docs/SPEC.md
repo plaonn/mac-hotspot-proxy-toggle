@@ -123,6 +123,7 @@ App bundle 원칙:
 - `LSUIElement=true`로 Dock icon 없이 menu bar item만 표시함.
 - App bundle executable은 `hotspot-proxy-toggle-menu`임.
 - Finder, Spotlight, Launchpad에서 실행 가능해야 함.
+- 기존 menu companion instance가 이미 실행 중이면 새 instance는 status item을 만들지 않고 종료함.
 - app launch 시 helper LaunchAgent plist가 있으면 helper를 다시 bootstrap/kickstart함.
 - helper plist가 없고 polling LaunchAgent plist가 있으면 polling LaunchAgent를 다시 bootstrap/kickstart함.
 - app launch가 hotspot/proxy decision이나 macOS proxy write policy를 직접 구현하지 않음.

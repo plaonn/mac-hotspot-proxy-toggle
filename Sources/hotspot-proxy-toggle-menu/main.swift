@@ -2,6 +2,11 @@ import AppKit
 import Darwin
 import Foundation
 
+let instanceLockFD = acquireSingleInstanceLock()
+if instanceLockFD == nil {
+    exit(0)
+}
+
 struct MenuConfig {
     var command = defaultCommandPath()
     var statePath = defaultStatePath()
@@ -514,6 +519,32 @@ func defaultCommandPath() -> String {
 
 func defaultStatePath() -> String {
     "\(homeDirectory())/Library/Application Support/hotspot-proxy-toggle/status.json"
+}
+
+func defaultLockPath() -> String {
+    "\(homeDirectory())/Library/Application Support/hotspot-proxy-toggle/menu.lock"
+}
+
+func acquireSingleInstanceLock() -> Int32? {
+    let lockPath = defaultLockPath()
+    let directory = (lockPath as NSString).deletingLastPathComponent
+    try? FileManager.default.createDirectory(
+        atPath: directory,
+        withIntermediateDirectories: true,
+        attributes: nil
+    )
+
+    let fd = open(lockPath, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+    guard fd >= 0 else {
+        return nil
+    }
+
+    if flock(fd, LOCK_EX | LOCK_NB) != 0 {
+        close(fd)
+        return nil
+    }
+
+    return fd
 }
 
 func homeDirectory() -> String {

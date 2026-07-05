@@ -61,6 +61,11 @@ jobs:
           path: homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
+      - name: Validate tap push access
+        run: |
+          cd homebrew-tap
+          git push --dry-run origin HEAD:main
+
       - name: Update Formula
         run: |
           set -euo pipefail

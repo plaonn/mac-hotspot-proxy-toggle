@@ -517,19 +517,22 @@ final class AutomationController {
     }
 
     func setEnabled(_ enabled: Bool) throws {
+        let wasEnabled = isEnabled
         if enabled {
             let helperChanged = try writeLaunchAgents()
-            if helperChanged || !launchAgentIsLoaded(label: helperLabel) {
+            if helperChanged || !wasEnabled {
                 _ = runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(helperLabel)"])
                 _ = runLaunchctl(arguments: ["bootstrap", "gui/\(getuid())", helperPlistPath])
                 _ = runLaunchctl(arguments: ["kickstart", "-k", "gui/\(getuid())/\(helperLabel)"])
             }
-            if !launchAgentIsLoaded(label: menuLabel) {
+            if !wasEnabled {
                 _ = runLaunchctl(arguments: ["bootstrap", "gui/\(getuid())", menuPlistPath])
                 _ = runLaunchctl(arguments: ["kickstart", "-k", "gui/\(getuid())/\(menuLabel)"])
             }
         } else {
-            _ = runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(helperLabel)"])
+            if wasEnabled {
+                _ = runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(helperLabel)"])
+            }
             try? FileManager.default.removeItem(atPath: helperPlistPath)
             try? FileManager.default.removeItem(atPath: menuPlistPath)
         }
@@ -672,10 +675,6 @@ final class AutomationController {
 
     private var menuLabel: String {
         "com.github.plaonn.hotspot-proxy-toggle.menu"
-    }
-
-    private func launchAgentIsLoaded(label: String) -> Bool {
-        runLaunchctl(arguments: ["print", "gui/\(getuid())/\(label)"]) == 0
     }
 
     private func runLaunchctl(arguments: [String]) -> Int32 {
@@ -888,6 +887,7 @@ final class SettingsWindowController: NSWindowController {
                 ).setEnabled(startAutomatically)
                 self?.runCommand(argument: "run")
                 DispatchQueue.main.async {
+                    self?.setSaving(false)
                     self?.close()
                 }
             } catch {

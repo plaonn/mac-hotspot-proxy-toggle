@@ -68,6 +68,6 @@ Settings window는 아래 main settings만 노출합니다.
 - `Language`: `System Default`, `English`, `한국어`.
 - `Start Automatically`: background helper와 menu bar app을 함께 켜거나 끄는 단일 toggle.
 
-Advanced에는 troubleshooting용 `Proxy Check Timeout`과 `Watchdog Interval`만 둡니다.
+Advanced에는 troubleshooting용 `Proxy Check Timeout (seconds)`와 `Watchdog Interval (seconds)`만 둡니다.
 
 `NETWORK_SERVICE`와 `WIFI_DEVICE`는 기본적으로 자동 감지하며 Settings에 일반 설정으로 노출하지 않습니다.

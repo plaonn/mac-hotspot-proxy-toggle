@@ -71,7 +71,7 @@ write_config_if_missing() {
     printf 'PROXY_PORT=%q\n' "$PROXY_PORT"
     printf 'HOTSPOT_SSID=%q\n' "${HOTSPOT_SSID:-}"
     printf 'REQUIRE_PROXY_CHECK=%q\n' "${REQUIRE_PROXY_CHECK:-1}"
-    printf 'PROXY_CHECK_TIMEOUT=%q\n' "${PROXY_CHECK_TIMEOUT:-1}"
+    printf 'PROXY_CHECK_TIMEOUT=%q\n' "${PROXY_CHECK_TIMEOUT:-3}"
     printf 'NOTIFY_ON_CHANGE=%q\n' "${NOTIFY_ON_CHANGE:-0}"
     printf 'LANGUAGE=%q\n' "${LANGUAGE:-auto}"
   } >"$CONFIG_PATH"

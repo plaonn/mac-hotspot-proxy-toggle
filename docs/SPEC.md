@@ -150,8 +150,8 @@ App bundle 원칙:
 
 Advanced settings:
 
-- `Proxy Check Timeout`
-- `Watchdog Interval`
+- `Proxy Check Timeout`: seconds
+- `Watchdog Interval`: seconds
 
 Settings 저장은 whitelisted config key만 갱신하고, legacy `HOTSPOT_SSIDS`, `HOTSPOT_DHCP_MARKERS`, `STRICT_SSID`, `NOTIFICATION_LOCALE` key는 저장 시 제거함. 저장 후 현재 network state에 대해 `hotspot-proxy-toggle run`을 한 번 호출함.
 
@@ -174,7 +174,7 @@ PROXY_TYPE=socks5
 PROXY_PORT=1080
 HOTSPOT_SSID=''
 REQUIRE_PROXY_CHECK=1
-PROXY_CHECK_TIMEOUT=1
+PROXY_CHECK_TIMEOUT=3
 DRY_RUN=0
 NOTIFY_ON_CHANGE=0
 LANGUAGE=auto

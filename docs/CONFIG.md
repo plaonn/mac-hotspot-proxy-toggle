@@ -15,7 +15,7 @@ PROXY_TYPE=socks5
 PROXY_PORT=1080
 HOTSPOT_SSID='My Phone'
 REQUIRE_PROXY_CHECK=1
-PROXY_CHECK_TIMEOUT=1
+PROXY_CHECK_TIMEOUT=3
 NOTIFY_ON_CHANGE=0
 LANGUAGE=auto
 ```
@@ -46,7 +46,7 @@ LANGUAGE=auto
 - `socks5`: SOCKS5 no-auth greeting에 대한 응답을 확인합니다.
 - `http`: absolute URI 형식의 HTTP request에 `HTTP/` response line이 오는지 확인합니다.
 
-`PROXY_CHECK_TIMEOUT`은 endpoint 확인 timeout 초 단위 값입니다.
+`PROXY_CHECK_TIMEOUT`은 endpoint 확인 timeout 초 단위 값입니다. 기본값은 `3`초입니다.
 
 ## Notification
 

@@ -381,7 +381,7 @@ struct AppSettings {
     var proxyType = "socks5"
     var proxyPort = "1080"
     var language = "auto"
-    var proxyCheckTimeout = "1"
+    var proxyCheckTimeout = "3"
     var helperWatchdogSeconds = "60"
 }
 
@@ -415,7 +415,7 @@ final class DotenvConfig {
             proxyType: values["PROXY_TYPE"] ?? "socks5",
             proxyPort: values["PROXY_PORT"] ?? "1080",
             language: values["LANGUAGE"] ?? values["NOTIFICATION_LOCALE"] ?? "auto",
-            proxyCheckTimeout: values["PROXY_CHECK_TIMEOUT"] ?? "1",
+            proxyCheckTimeout: values["PROXY_CHECK_TIMEOUT"] ?? "3",
             helperWatchdogSeconds: values["HELPER_WATCHDOG_SECONDS"] ?? "60"
         )
     }
@@ -677,6 +677,13 @@ final class AutomationController {
 
 final class SettingsWindowController: NSWindowController {
     private let config: MenuConfig
+    private let hotspotLabel = NSTextField(labelWithString: "")
+    private let proxyTypeLabel = NSTextField(labelWithString: "")
+    private let proxyPortLabel = NSTextField(labelWithString: "")
+    private let languageLabel = NSTextField(labelWithString: "")
+    private let advancedLabel = NSTextField(labelWithString: "")
+    private let timeoutLabel = NSTextField(labelWithString: "")
+    private let watchdogLabel = NSTextField(labelWithString: "")
     private let hotspotField = NSTextField()
     private let proxyTypePopup = NSPopUpButton()
     private let proxyPortField = NSTextField()
@@ -684,6 +691,9 @@ final class SettingsWindowController: NSWindowController {
     private let startAutomaticallyCheckbox = NSButton(checkboxWithTitle: "Start Automatically", target: nil, action: nil)
     private let timeoutField = NSTextField()
     private let watchdogField = NSTextField()
+    private let openConfigButton = NSButton()
+    private let openLogButton = NSButton()
+    private let saveButton = NSButton()
 
     init(config: MenuConfig) {
         self.config = config
@@ -694,11 +704,11 @@ final class SettingsWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "MHP Settings"
         window.center()
         super.init(window: window)
         buildContent()
         loadValues()
+        applyLanguage()
     }
 
     required init?(coder: NSCoder) {
@@ -726,15 +736,18 @@ final class SettingsWindowController: NSWindowController {
 
         proxyTypePopup.addItems(withTitles: ["SOCKS5", "HTTP/HTTPS Web Proxy"])
         languagePopup.addItems(withTitles: ["System Default", "English", "한국어"])
+        languagePopup.target = self
+        languagePopup.action = #selector(languageChanged)
 
-        stack.addArrangedSubview(row(label: "Hotspot SSID", control: hotspotField))
-        stack.addArrangedSubview(row(label: "Proxy Type", control: proxyTypePopup))
-        stack.addArrangedSubview(row(label: "Proxy Port", control: proxyPortField))
-        stack.addArrangedSubview(row(label: "Language", control: languagePopup))
+        stack.addArrangedSubview(row(labelView: hotspotLabel, control: hotspotField))
+        stack.addArrangedSubview(row(labelView: proxyTypeLabel, control: proxyTypePopup))
+        stack.addArrangedSubview(row(labelView: proxyPortLabel, control: proxyPortField))
+        stack.addArrangedSubview(row(labelView: languageLabel, control: languagePopup))
         stack.addArrangedSubview(startAutomaticallyCheckbox)
-        stack.addArrangedSubview(separator(label: "Advanced"))
-        stack.addArrangedSubview(row(label: "Proxy Check Timeout", control: timeoutField))
-        stack.addArrangedSubview(row(label: "Watchdog Interval", control: watchdogField))
+        configureSeparator(advancedLabel)
+        stack.addArrangedSubview(advancedLabel)
+        stack.addArrangedSubview(row(labelView: timeoutLabel, control: timeoutField))
+        stack.addArrangedSubview(row(labelView: watchdogLabel, control: watchdogField))
 
         let buttons = NSStackView()
         buttons.orientation = .horizontal
@@ -742,9 +755,12 @@ final class SettingsWindowController: NSWindowController {
         buttons.alignment = .centerY
         buttons.distribution = .fillEqually
 
-        let openConfigButton = NSButton(title: "Open Config", target: self, action: #selector(openConfig))
-        let openLogButton = NSButton(title: "Open Log", target: self, action: #selector(openLog))
-        let saveButton = NSButton(title: "Save", target: self, action: #selector(save))
+        openConfigButton.target = self
+        openConfigButton.action = #selector(openConfig)
+        openLogButton.target = self
+        openLogButton.action = #selector(openLog)
+        saveButton.target = self
+        saveButton.action = #selector(save)
         saveButton.keyEquivalent = "\r"
         buttons.addArrangedSubview(openConfigButton)
         buttons.addArrangedSubview(openLogButton)
@@ -752,8 +768,7 @@ final class SettingsWindowController: NSWindowController {
         stack.addArrangedSubview(buttons)
     }
 
-    private func row(label: String, control: NSView) -> NSStackView {
-        let labelView = NSTextField(labelWithString: label)
+    private func row(labelView: NSTextField, control: NSView) -> NSStackView {
         labelView.widthAnchor.constraint(equalToConstant: 150).isActive = true
         let row = NSStackView(views: [labelView, control])
         row.orientation = .horizontal
@@ -763,11 +778,9 @@ final class SettingsWindowController: NSWindowController {
         return row
     }
 
-    private func separator(label: String) -> NSView {
-        let view = NSTextField(labelWithString: label)
+    private func configureSeparator(_ view: NSTextField) {
         view.font = NSFont.boldSystemFont(ofSize: NSFont.smallSystemFontSize)
         view.textColor = .secondaryLabelColor
-        return view
     }
 
     private func loadValues() {
@@ -784,10 +797,38 @@ final class SettingsWindowController: NSWindowController {
         ).isEnabled ? .on : .off
     }
 
+    @objc private func languageChanged() {
+        applyLanguage()
+    }
+
+    private func applyLanguage() {
+        let korean = selectedLanguage().resolved == .ko
+        window?.title = korean ? "MHP 설정" : "MHP Settings"
+        hotspotLabel.stringValue = korean ? "핫스팟 SSID" : "Hotspot SSID"
+        proxyTypeLabel.stringValue = korean ? "프록시 유형" : "Proxy Type"
+        proxyPortLabel.stringValue = korean ? "프록시 포트" : "Proxy Port"
+        languageLabel.stringValue = korean ? "언어" : "Language"
+        startAutomaticallyCheckbox.title = korean ? "자동 시작" : "Start Automatically"
+        advancedLabel.stringValue = korean ? "고급" : "Advanced"
+        timeoutLabel.stringValue = korean ? "프록시 확인 제한시간 (초)" : "Proxy Check Timeout (seconds)"
+        watchdogLabel.stringValue = korean ? "Watchdog 간격 (초)" : "Watchdog Interval (seconds)"
+        openConfigButton.title = korean ? "설정 파일 열기" : "Open Config"
+        openLogButton.title = korean ? "로그 열기" : "Open Log"
+        saveButton.title = korean ? "저장" : "Save"
+    }
+
+    private func selectedLanguage() -> MenuLocale {
+        let languages = ["auto", "en", "ko"]
+        let selected = languages.indices.contains(languagePopup.indexOfSelectedItem)
+            ? languages[languagePopup.indexOfSelectedItem]
+            : "auto"
+        return MenuLocale(rawValue: selected) ?? .auto
+    }
+
     @objc private func save() {
-        guard validatePositiveInteger(proxyPortField.stringValue, name: "Proxy Port", min: 1, max: 65535),
-              validatePositiveInteger(timeoutField.stringValue, name: "Proxy Check Timeout", min: 1, max: 60),
-              validatePositiveInteger(watchdogField.stringValue, name: "Watchdog Interval", min: 0, max: 3600) else {
+        guard validatePositiveInteger(proxyPortField.stringValue, nameEn: "Proxy Port", nameKo: "프록시 포트", min: 1, max: 65535),
+              validatePositiveInteger(timeoutField.stringValue, nameEn: "Proxy Check Timeout", nameKo: "프록시 확인 제한시간", min: 1, max: 60),
+              validatePositiveInteger(watchdogField.stringValue, nameEn: "Watchdog Interval", nameKo: "Watchdog 간격", min: 0, max: 3600) else {
             return
         }
 
@@ -821,17 +862,23 @@ final class SettingsWindowController: NSWindowController {
         NSWorkspace.shared.open(URL(fileURLWithPath: "\(homeDirectory())/Library/Logs/hotspot-proxy-toggle.log"))
     }
 
-    private func validatePositiveInteger(_ rawValue: String, name: String, min: Int, max: Int) -> Bool {
+    private func validatePositiveInteger(_ rawValue: String, nameEn: String, nameKo: String, min: Int, max: Int) -> Bool {
         guard let value = Int(rawValue), value >= min, value <= max else {
-            showError("\(name) must be between \(min) and \(max).")
+            let korean = selectedLanguage().resolved == .ko
+            let name = korean ? nameKo : nameEn
+            let message = korean
+                ? "\(name)은 \(min)에서 \(max) 사이여야 합니다."
+                : "\(name) must be between \(min) and \(max)."
+            showError(message)
             return false
         }
         return true
     }
 
     private func showError(_ message: String) {
+        let korean = selectedLanguage().resolved == .ko
         let alert = NSAlert()
-        alert.messageText = "Could not save settings"
+        alert.messageText = korean ? "설정을 저장할 수 없음" : "Could not save settings"
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()

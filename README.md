@@ -1,24 +1,24 @@
 # mac-hotspot-proxy-toggle
 
+[English](README.en.md) | 한국어
+
 <p>
   <img src="docs/assets/mhp-app-icon.svg" width="96" alt="MHP app icon">
 </p>
 
-일치하는 휴대폰 핫스팟과 프록시 endpoint가 있을 때만 macOS 프록시 설정을 켜는 작은 macOS 유틸리티임.
+일치하는 휴대폰 핫스팟과 프록시 endpoint가 있을 때만 macOS 프록시 설정을 켜는 작은 macOS 유틸리티입니다.
 
-[English README](README.en.md)
+## 무엇을 해결하나요?
 
-## 무엇을 해결하나
+macOS 프록시 설정은 Wi-Fi SSID별이 아니라 `Wi-Fi` 같은 network service 단위로 적용됩니다. 휴대폰 핫스팟은 연결할 때마다 라우터 IP가 바뀔 수도 있습니다.
 
-macOS 프록시 설정은 Wi-Fi SSID별이 아니라 `Wi-Fi` 같은 network service 단위로 적용됨. 휴대폰 핫스팟은 연결할 때마다 라우터 IP가 바뀔 수도 있음.
+MHP는 현재 네트워크 상태를 한 번 확인하고, 아래 조건이 맞을 때만 macOS 프록시를 켭니다.
 
-MHP는 현재 네트워크 상태를 한 번 확인하고, 아래 조건이 맞을 때만 macOS 프록시를 켬.
+1. 기본 route가 Wi-Fi입니다.
+2. 현재 Wi-Fi가 설정한 휴대폰 핫스팟처럼 보입니다.
+3. 현재 핫스팟 라우터 IP의 `PROXY_PORT`에서 proxy endpoint가 응답합니다.
 
-1. 기본 route가 Wi-Fi임.
-2. 현재 Wi-Fi가 설정한 휴대폰 핫스팟처럼 보임.
-3. 현재 핫스팟 라우터 IP의 `PROXY_PORT`에서 proxy endpoint가 응답함.
-
-조건이 맞지 않으면 프록시를 끔. 현재 backend는 `socks5`와 `http`를 지원함.
+조건이 맞지 않으면 프록시를 끕니다. 현재 backend는 `socks5`와 `http`를 지원합니다.
 
 ## 빠른 설치
 
@@ -52,7 +52,7 @@ PROXY_PORT=1080 ./install.sh
 HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
 ```
 
-자세한 설치 옵션은 [docs/INSTALL.md](docs/INSTALL.md)에 있음.
+자세한 설치 옵션은 [docs/INSTALL.md](docs/INSTALL.md)에 있습니다.
 
 ## 최소 설정
 
@@ -73,26 +73,26 @@ STRICT_SSID=0
 REQUIRE_PROXY_CHECK=1
 ```
 
-- `PROXY_TYPE=socks5`: macOS SOCKS firewall proxy를 설정함.
-- `PROXY_TYPE=http`: Web Proxy와 Secure Web Proxy를 함께 설정함.
-- `HOTSPOT_SSIDS`: 정확히 매칭할 SSID allow-list.
-- `HOTSPOT_DHCP_MARKERS`: Android hotspot처럼 DHCP marker로 감지할 때 사용함.
+- `PROXY_TYPE=socks5`: macOS SOCKS firewall proxy를 설정합니다.
+- `PROXY_TYPE=http`: Web Proxy와 Secure Web Proxy를 함께 설정합니다.
+- `HOTSPOT_SSIDS`: 정확히 매칭할 SSID allow-list입니다.
+- `HOTSPOT_DHCP_MARKERS`: Android hotspot처럼 DHCP marker로 감지할 때 사용합니다.
 
-전체 설정 설명은 [docs/CONFIG.md](docs/CONFIG.md)에 있음.
+전체 설정 설명은 [docs/CONFIG.md](docs/CONFIG.md)에 있습니다.
 
 ## 상태 아이콘
 
 ![MHP status icons](docs/assets/mhp-status-icons.svg)
 
-Menu bar item은 기본적으로 아이콘만 표시함. macOS template icon 규칙에 맞춰 색상 대신 alpha와 knockout shape으로 상태를 구분함.
+Menu bar item은 기본적으로 아이콘만 표시합니다. macOS template icon 규칙에 맞춰 색상 대신 alpha와 knockout shape으로 상태를 구분합니다.
 
 | 상태 | 의미 |
 | --- | --- |
-| 채워진 휴대폰 | 핫스팟 프록시 사용 중 |
-| 외곽선 휴대폰 | 현재 Wi-Fi가 설정한 핫스팟이 아니거나 대기 중 |
-| 대각선이 있는 채워진 휴대폰 | 핫스팟은 감지됐지만 프록시를 사용할 수 없음 |
+| 채워진 휴대폰 | 핫스팟 프록시를 사용 중입니다. |
+| 외곽선 휴대폰 | 현재 Wi-Fi가 설정한 핫스팟이 아니거나 대기 중입니다. |
+| 대각선이 있는 채워진 휴대폰 | 핫스팟은 감지됐지만 프록시를 사용할 수 없습니다. |
 
-Menu bar, `MHP.app`, notification 동작은 [docs/UI.md](docs/UI.md)에 있음.
+Menu bar, `MHP.app`, notification 동작은 [docs/UI.md](docs/UI.md)에 있습니다.
 
 ## 확인
 
@@ -122,4 +122,4 @@ PROXY_PORT=1080 DRY_RUN=1 ./bin/hotspot-proxy-toggle run
 ./scripts/validate.sh
 ```
 
-더 자세한 개발 workflow는 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)에 있음.
+더 자세한 개발 workflow는 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)에 있습니다.

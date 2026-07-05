@@ -28,6 +28,6 @@
   <text x="430" y="260" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="18" fill="#57606a">Quit MHP</text>
 
   <text x="60" y="120" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="28" font-weight="600" fill="#24292f">메뉴바 상태 아이콘</text>
-  <text x="60" y="158" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="17" fill="#57606a">실제 아이콘은 macOS template image임.</text>
-  <text x="60" y="184" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="17" fill="#57606a">light/dark mode tint를 따름.</text>
+  <text x="60" y="158" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="17" fill="#57606a">실제 아이콘은 macOS template image입니다.</text>
+  <text x="60" y="184" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="17" fill="#57606a">light/dark mode tint를 따릅니다.</text>
 </svg>

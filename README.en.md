@@ -1,12 +1,12 @@
 # mac-hotspot-proxy-toggle
 
+[English](README.en.md) | [한국어](README.md)
+
 <p>
   <img src="docs/assets/mhp-app-icon.svg" width="96" alt="MHP app icon">
 </p>
 
 A small macOS utility that turns system proxy settings on only when the current Wi-Fi looks like a configured phone hotspot and the proxy endpoint is available.
-
-[한국어 README](README.md)
 
 ## Why
 

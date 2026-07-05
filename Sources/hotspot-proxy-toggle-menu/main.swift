@@ -3,7 +3,7 @@ import Darwin
 import Foundation
 
 struct MenuConfig {
-    var command = "hotspot-proxy-toggle"
+    var command = defaultCommandPath()
     var refreshSeconds = 30.0
     var title = "MHP"
     var locale = MenuLocale.auto
@@ -173,6 +173,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         configureStatusItem()
+        ensureAutomationAgentLoaded()
         refreshStatus()
         timer = Timer.scheduledTimer(withTimeInterval: config.refreshSeconds, repeats: true) { [weak self] _ in
             self?.refreshStatus()
@@ -318,20 +319,53 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
 
     private func bootoutLaunchAgent(label: String, completion: @escaping () -> Void) {
         DispatchQueue.global(qos: .utility).async {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-            process.arguments = ["bootout", "gui/\(getuid())/\(label)"]
-            process.standardOutput = Pipe()
-            process.standardError = Pipe()
-
-            do {
-                try process.run()
-                process.waitUntilExit()
-            } catch {
-                // LaunchAgent may already be unloaded. Quit should still proceed.
-            }
-
+            _ = self.runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(label)"])
             completion()
+        }
+    }
+
+    private func ensureAutomationAgentLoaded() {
+        DispatchQueue.global(qos: .utility).async {
+            let candidates = [
+                (
+                    label: "com.github.plaonn.hotspot-proxy-toggle.helper",
+                    plist: "\(homeDirectory())/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.helper.plist"
+                ),
+                (
+                    label: "com.github.plaonn.hotspot-proxy-toggle",
+                    plist: "\(homeDirectory())/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.plist"
+                ),
+            ]
+
+            for candidate in candidates where FileManager.default.fileExists(atPath: candidate.plist) {
+                if self.launchAgentIsLoaded(label: candidate.label) {
+                    return
+                }
+
+                _ = self.runLaunchctl(arguments: ["bootstrap", "gui/\(getuid())", candidate.plist])
+                _ = self.runLaunchctl(arguments: ["kickstart", "-k", "gui/\(getuid())/\(candidate.label)"])
+                return
+            }
+        }
+    }
+
+    private func launchAgentIsLoaded(label: String) -> Bool {
+        runLaunchctl(arguments: ["print", "gui/\(getuid())/\(label)"]) == 0
+    }
+
+    private func runLaunchctl(arguments: [String]) -> Int32 {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = arguments
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus
+        } catch {
+            return 127
         }
     }
 
@@ -343,6 +377,18 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
             return en
         }
     }
+}
+
+func defaultCommandPath() -> String {
+    let installedPath = "\(homeDirectory())/.local/share/hotspot-proxy-toggle/bin/hotspot-proxy-toggle"
+    if FileManager.default.isExecutableFile(atPath: installedPath) {
+        return installedPath
+    }
+    return "hotspot-proxy-toggle"
+}
+
+func homeDirectory() -> String {
+    FileManager.default.homeDirectoryForCurrentUser.path
 }
 
 func printUsage() {

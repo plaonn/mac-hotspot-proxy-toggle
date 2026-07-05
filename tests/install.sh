@@ -22,6 +22,7 @@ POLLING_LOAD_RESULT=0
 MENU_BAR_RESULT=0
 MENU_BAR_PLIST_RESULT=0
 MENU_BAR_LOAD_RESULT=0
+APP_RESULT=0
 
 record_pass() {
   PASS_COUNT=$((PASS_COUNT + 1))
@@ -58,6 +59,8 @@ assert_contains() {
 reset_install_state() {
   HOTSPOT_TRIGGER_MODE=""
   HOTSPOT_MENU_BAR="0"
+  HOTSPOT_APP="1"
+  APP_INSTALLED=0
   EVENTS=()
   EVENT_HELPER_RESULT=0
   EVENT_PLIST_RESULT=0
@@ -66,6 +69,7 @@ reset_install_state() {
   MENU_BAR_RESULT=0
   MENU_BAR_PLIST_RESULT=0
   MENU_BAR_LOAD_RESULT=0
+  APP_RESULT=0
 }
 
 install_files() {
@@ -99,6 +103,14 @@ install_menu_bar_file() {
   return "$MENU_BAR_RESULT"
 }
 
+install_app_bundle() {
+  EVENTS+=("app")
+  if [[ "$APP_RESULT" == "0" ]]; then
+    APP_INSTALLED=1
+  fi
+  return "$APP_RESULT"
+}
+
 write_menu_bar_launch_agent() {
   EVENTS+=("menu-bar-plist")
   return "$MENU_BAR_PLIST_RESULT"
@@ -130,7 +142,8 @@ default_install_uses_event_helper() {
 
   assert_contains "$output" "Trigger mode: event" &&
     assert_contains "$output" "Menu bar: disabled" &&
-    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event-helper event-plist helper-load" ]]
+    assert_contains "$output" "App: " &&
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config app event-helper event-plist helper-load" ]]
 }
 
 menu_bar_opt_in_installs_companion() {
@@ -143,7 +156,21 @@ menu_bar_opt_in_installs_companion() {
 
   assert_contains "$output" "Trigger mode: event" &&
     assert_contains "$output" "Menu bar: enabled" &&
-    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event-helper event-plist helper-load menu-bar menu-bar-plist menu-bar-load" ]]
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config app event-helper event-plist helper-load menu-bar menu-bar-plist menu-bar-load" ]]
+}
+
+app_build_failure_keeps_core_install() {
+  local output
+
+  reset_install_state
+  APP_RESULT=1
+  main >"$TEST_TMP/app-failure.out" 2>&1
+  output="$(<"$TEST_TMP/app-failure.out")"
+
+  assert_contains "$output" "MHP.app install failed; continuing without Finder app" &&
+    assert_contains "$output" "Trigger mode: event" &&
+    assert_contains "$output" "App: disabled" &&
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config app event-helper event-plist helper-load" ]]
 }
 
 menu_bar_build_failure_keeps_core_install() {
@@ -159,7 +186,7 @@ menu_bar_build_failure_keeps_core_install() {
     assert_contains "$output" "Menu bar companion install failed; continuing without menu bar item" &&
     assert_contains "$output" "Trigger mode: event" &&
     assert_contains "$output" "Menu bar: disabled" &&
-    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event-helper event-plist helper-load menu-bar" ]]
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config app event-helper event-plist helper-load menu-bar" ]]
 }
 
 event_helper_build_failure_falls_back_to_polling() {
@@ -175,7 +202,7 @@ event_helper_build_failure_falls_back_to_polling() {
     assert_contains "$output" "Event helper install failed; falling back to polling LaunchAgent" &&
     assert_contains "$output" "Installed polling fallback; retry event mode after fixing the diagnostic above by running ./install.sh" &&
     assert_contains "$output" "Trigger mode: polling" &&
-    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event-helper polling-plist polling-load" ]]
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config app event-helper polling-plist polling-load" ]]
 }
 
 event_plist_failure_falls_back_to_polling() {
@@ -189,7 +216,7 @@ event_plist_failure_falls_back_to_polling() {
   assert_contains "$output" "Event helper diagnostic: failed to write helper LaunchAgent plist:" &&
     assert_contains "$output" "Event helper install failed; falling back to polling LaunchAgent" &&
     assert_contains "$output" "Trigger mode: polling" &&
-    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event-helper event-plist polling-plist polling-load" ]]
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config app event-helper event-plist polling-plist polling-load" ]]
 }
 
 event_launchctl_failure_falls_back_to_polling() {
@@ -205,7 +232,7 @@ event_launchctl_failure_falls_back_to_polling() {
     assert_contains "$output" '/com.github.plaonn.hotspot-proxy-toggle.helper"' &&
   assert_contains "$output" "Event helper install failed; falling back to polling LaunchAgent" &&
     assert_contains "$output" "Trigger mode: polling" &&
-    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event-helper event-plist helper-load polling-plist polling-load" ]]
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config app event-helper event-plist helper-load polling-plist polling-load" ]]
 }
 
 explicit_polling_skips_event_helper() {
@@ -217,7 +244,7 @@ explicit_polling_skips_event_helper() {
   output="$(<"$TEST_TMP/explicit-polling.out")"
 
   assert_contains "$output" "Trigger mode: polling" &&
-    [[ "${EVENTS[*]-}" == "cleanup install-files write-config polling-plist polling-load" ]]
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config app polling-plist polling-load" ]]
 }
 
 unsupported_trigger_mode_is_rejected() {
@@ -239,6 +266,7 @@ unsupported_trigger_mode_is_rejected() {
 
 run_test "default install uses event helper" default_install_uses_event_helper
 run_test "menu bar opt-in installs companion" menu_bar_opt_in_installs_companion
+run_test "app build failure keeps core install" app_build_failure_keeps_core_install
 run_test "menu bar build failure keeps core install" menu_bar_build_failure_keeps_core_install
 run_test "event helper build failure falls back to polling" event_helper_build_failure_falls_back_to_polling
 run_test "event plist failure falls back to polling" event_plist_failure_falls_back_to_polling

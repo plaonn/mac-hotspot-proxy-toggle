@@ -83,6 +83,19 @@ MENU_BAR_LOCALE=auto
 
 Companion LaunchAgent는 `KeepAlive`를 사용하지 않음. 사용자가 menu에서 `Quit MHP`를 선택하면 launchd가 즉시 재시작하지 않아야 함.
 
+## MHP.app
+
+`scripts/build-app.sh`는 menu bar companion binary를 `MHP.app` bundle로 포장함.
+
+App bundle 원칙:
+
+- `LSUIElement=true`로 Dock icon 없이 menu bar item만 표시함.
+- App bundle executable은 `hotspot-proxy-toggle-menu`임.
+- Finder, Spotlight, Launchpad에서 실행 가능해야 함.
+- app launch 시 helper LaunchAgent plist가 있으면 helper를 다시 bootstrap/kickstart함.
+- helper plist가 없고 polling LaunchAgent plist가 있으면 polling LaunchAgent를 다시 bootstrap/kickstart함.
+- app launch가 hotspot/proxy decision이나 macOS proxy write policy를 직접 구현하지 않음.
+
 ## 설정
 
 기본 config path:
@@ -223,6 +236,14 @@ HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
 
 `MENU_BAR_REFRESH_SECONDS`로 상태 refresh 간격을, `MENU_BAR_TITLE`로 menu bar title을, `MENU_BAR_LOCALE=auto|en|ko`로 menu language를 바꿀 수 있음.
 
+source installer는 기본적으로 Finder 실행용 app bundle도 설치함:
+
+```text
+~/Applications/MHP.app
+```
+
+`HOTSPOT_APP=0`이면 app bundle 설치를 생략함. `HOTSPOT_APP_INSTALL_DIR`로 설치 directory를 바꿀 수 있음.
+
 helper build, helper LaunchAgent plist 생성, helper LaunchAgent load 중 하나가 실패하면 installer는 실패 단계와 확인 힌트를 출력한 뒤 아래 polling LaunchAgent를 설치함. `HOTSPOT_TRIGGER_MODE=polling`을 명시한 경우에도 polling LaunchAgent를 설치하고 helper LaunchAgent는 제거함:
 
 ```text
@@ -243,6 +264,7 @@ hotspot-proxy-toggle run
 <prefix>/bin/hotspot-proxy-toggle
 <prefix>/libexec/hotspot-proxy-toggle-helper
 <prefix>/libexec/hotspot-proxy-toggle-menu
+<prefix>/libexec/MHP.app
 <prefix>/etc/hotspot-proxy-toggle.conf.example
 ```
 
@@ -250,4 +272,4 @@ hotspot-proxy-toggle run
 
 ## 제거
 
-`uninstall.sh`는 polling/helper/menu LaunchAgent를 모두 unload하고, 설치된 binary tree와 command symlink를 제거하며, config file은 유지함.
+`uninstall.sh`는 polling/helper/menu LaunchAgent를 모두 unload하고, 설치된 binary tree, command symlink, `~/Applications/MHP.app`을 제거하며, config file은 유지함.

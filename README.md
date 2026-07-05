@@ -135,6 +135,20 @@ Menu bar companion이 켜지면 아래 파일이 추가됩니다.
 ~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.menu.plist
 ```
 
+Source install은 Finder와 Spotlight에서 실행할 수 있는 `MHP.app`도 설치합니다.
+
+```text
+~/Applications/MHP.app
+```
+
+`Quit MHP`로 menu bar item과 helper를 내린 뒤에는 Finder, Spotlight, Launchpad에서 `MHP`를 실행해 다시 올릴 수 있습니다. 앱은 Dock icon을 띄우지 않고 menu bar item만 표시합니다.
+
+App bundle 설치를 생략하려면 다음처럼 실행합니다.
+
+```bash
+HOTSPOT_APP=0 PROXY_PORT=1080 ./install.sh
+```
+
 ## 확인
 
 ```bash
@@ -260,7 +274,14 @@ Menu bar companion도 직접 빌드할 수 있습니다.
 .build/hotspot-proxy-toggle-menu --command ./bin/hotspot-proxy-toggle
 ```
 
-패키지 매니저용 prefix 설치는 사용자 config나 LaunchAgent를 생성하지 않고 실행 파일, helper, 예시 config만 설치합니다.
+`MHP.app` bundle도 직접 빌드할 수 있습니다.
+
+```bash
+./scripts/build-app.sh
+open .build/MHP.app
+```
+
+패키지 매니저용 prefix 설치는 사용자 config나 LaunchAgent를 생성하지 않고 실행 파일, helper, app bundle, 예시 config만 설치합니다.
 
 ```bash
 make install PREFIX=/usr/local

@@ -18,10 +18,14 @@ LOG_DIR="$HOME/Library/Logs"
 CHECK_INTERVAL_SECONDS="${CHECK_INTERVAL_SECONDS:-60}"
 HOTSPOT_TRIGGER_MODE="${HOTSPOT_TRIGGER_MODE:-}"
 HOTSPOT_MENU_BAR="${HOTSPOT_MENU_BAR:-0}"
+HOTSPOT_APP="${HOTSPOT_APP:-1}"
+APP_INSTALL_DIR="${HOTSPOT_APP_INSTALL_DIR:-$HOME/Applications}"
+APP_INSTALL_PATH="$APP_INSTALL_DIR/MHP.app"
 MENU_BAR_REFRESH_SECONDS="${MENU_BAR_REFRESH_SECONDS:-30}"
 MENU_BAR_TITLE="${MENU_BAR_TITLE:-MHP}"
 MENU_BAR_LOCALE="${MENU_BAR_LOCALE:-auto}"
 MENU_BAR_INSTALLED=0
+APP_INSTALLED=0
 HELPER_DEBOUNCE_SECONDS="${HELPER_DEBOUNCE_SECONDS:-1}"
 HELPER_MAX_RUNS="${HELPER_MAX_RUNS:-3}"
 HELPER_WINDOW_SECONDS="${HELPER_WINDOW_SECONDS:-10}"
@@ -175,6 +179,27 @@ install_menu_bar_file() {
   printf 'Installed menu bar companion: %s\n' "$output"
 }
 
+install_app_bundle() {
+  local app_output
+
+  if [[ "$HOTSPOT_APP" != "1" ]]; then
+    return 0
+  fi
+
+  if ! app_output="$(APP_PATH="$INSTALL_ROOT/MHP.app" "$SOURCE_DIR/scripts/build-app.sh" 2>&1)"; then
+    printf '%s\n' "$app_output" >&2
+    printf 'App diagnostic: failed to build MHP.app\n' >&2
+    printf 'Hint: install Xcode Command Line Tools or run scripts/build-app.sh for details\n' >&2
+    return 1
+  fi
+
+  /bin/mkdir -p "$APP_INSTALL_DIR"
+  /bin/rm -rf "$APP_INSTALL_PATH"
+  /bin/cp -R "$app_output" "$APP_INSTALL_PATH"
+  APP_INSTALLED=1
+  printf 'Installed app: %s\n' "$APP_INSTALL_PATH"
+}
+
 unload_launch_agent() {
   local plist_path="$1"
 
@@ -258,6 +283,9 @@ main() {
   cleanup_managed_runtime || return
   install_files || return
   write_config_if_missing || return
+  if ! install_app_bundle; then
+    printf 'MHP.app install failed; continuing without Finder app\n' >&2
+  fi
 
   if [[ "$HOTSPOT_TRIGGER_MODE" == "event" ]]; then
     if ! install_event_launch_agent; then
@@ -276,6 +304,7 @@ main() {
 
   printf 'Trigger mode: %s\n' "$HOTSPOT_TRIGGER_MODE"
   printf 'Menu bar: %s\n' "$([[ "$MENU_BAR_INSTALLED" == "1" ]] && printf 'enabled' || printf 'disabled')"
+  printf 'App: %s\n' "$([[ "$APP_INSTALLED" == "1" ]] && printf '%s' "$APP_INSTALL_PATH" || printf 'disabled')"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

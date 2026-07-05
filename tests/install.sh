@@ -19,6 +19,9 @@ EVENT_HELPER_RESULT=0
 EVENT_PLIST_RESULT=0
 HELPER_LOAD_RESULT=0
 POLLING_LOAD_RESULT=0
+MENU_BAR_RESULT=0
+MENU_BAR_PLIST_RESULT=0
+MENU_BAR_LOAD_RESULT=0
 
 record_pass() {
   PASS_COUNT=$((PASS_COUNT + 1))
@@ -54,11 +57,15 @@ assert_contains() {
 
 reset_install_state() {
   HOTSPOT_TRIGGER_MODE=""
+  HOTSPOT_MENU_BAR="0"
   EVENTS=()
   EVENT_HELPER_RESULT=0
   EVENT_PLIST_RESULT=0
   HELPER_LOAD_RESULT=0
   POLLING_LOAD_RESULT=0
+  MENU_BAR_RESULT=0
+  MENU_BAR_PLIST_RESULT=0
+  MENU_BAR_LOAD_RESULT=0
 }
 
 install_files() {
@@ -87,12 +94,27 @@ write_polling_launch_agent() {
   EVENTS+=("polling-plist")
 }
 
+install_menu_bar_file() {
+  EVENTS+=("menu-bar")
+  return "$MENU_BAR_RESULT"
+}
+
+write_menu_bar_launch_agent() {
+  EVENTS+=("menu-bar-plist")
+  return "$MENU_BAR_PLIST_RESULT"
+}
+
 load_launch_agent() {
   local label="$1"
 
   if [[ "$label" == "$HELPER_LABEL" ]]; then
     EVENTS+=("helper-load")
     return "$HELPER_LOAD_RESULT"
+  fi
+
+  if [[ "$label" == "$MENU_BAR_LABEL" ]]; then
+    EVENTS+=("menu-bar-load")
+    return "$MENU_BAR_LOAD_RESULT"
   fi
 
   EVENTS+=("polling-load")
@@ -107,7 +129,37 @@ default_install_uses_event_helper() {
   output="$(<"$TEST_TMP/default-event.out")"
 
   assert_contains "$output" "Trigger mode: event" &&
+    assert_contains "$output" "Menu bar: disabled" &&
     [[ "${EVENTS[*]-}" == "cleanup install-files write-config event-helper event-plist helper-load" ]]
+}
+
+menu_bar_opt_in_installs_companion() {
+  local output
+
+  reset_install_state
+  HOTSPOT_MENU_BAR=1
+  main >"$TEST_TMP/menu-bar.out" 2>&1
+  output="$(<"$TEST_TMP/menu-bar.out")"
+
+  assert_contains "$output" "Trigger mode: event" &&
+    assert_contains "$output" "Menu bar: enabled" &&
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event-helper event-plist helper-load menu-bar menu-bar-plist menu-bar-load" ]]
+}
+
+menu_bar_build_failure_keeps_core_install() {
+  local output
+
+  reset_install_state
+  HOTSPOT_MENU_BAR=1
+  MENU_BAR_RESULT=1
+  main >"$TEST_TMP/menu-bar-failure.out" 2>&1
+  output="$(<"$TEST_TMP/menu-bar-failure.out")"
+
+  assert_contains "$output" "Menu bar diagnostic: failed to build or install companion binary" &&
+    assert_contains "$output" "Menu bar companion install failed; continuing without menu bar item" &&
+    assert_contains "$output" "Trigger mode: event" &&
+    assert_contains "$output" "Menu bar: disabled" &&
+    [[ "${EVENTS[*]-}" == "cleanup install-files write-config event-helper event-plist helper-load menu-bar" ]]
 }
 
 event_helper_build_failure_falls_back_to_polling() {
@@ -186,6 +238,8 @@ unsupported_trigger_mode_is_rejected() {
 }
 
 run_test "default install uses event helper" default_install_uses_event_helper
+run_test "menu bar opt-in installs companion" menu_bar_opt_in_installs_companion
+run_test "menu bar build failure keeps core install" menu_bar_build_failure_keeps_core_install
 run_test "event helper build failure falls back to polling" event_helper_build_failure_falls_back_to_polling
 run_test "event plist failure falls back to polling" event_plist_failure_falls_back_to_polling
 run_test "event launchctl failure falls back to polling" event_launchctl_failure_falls_back_to_polling

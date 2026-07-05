@@ -6,11 +6,11 @@
 
 - Event-driven 기본 mode와 hotspot-limited endpoint watchdog을 실제 macOS network transition에서 계속 검증.
 - 사용할 수 없는 dependency에 대한 diagnostics 개선.
+- Menu bar companion을 실제 macOS menu bar 사용에서 계속 검증.
 
 ## 나중 후보
 
 - 실제 use case가 생기면 `PROXY_TYPE` 뒤에 PAC configuration 같은 추가 backend 도입.
-- 실제 상시 상태 표시와 수동 제어 요구가 생기면 별도 menu bar companion app 검토.
 
 ## 비목표
 

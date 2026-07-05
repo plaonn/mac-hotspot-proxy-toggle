@@ -13,6 +13,7 @@ scripts=(
   "tests/install.sh"
   "scripts/validate.sh"
   "scripts/build-helper.sh"
+  "scripts/build-menu-bar.sh"
   "scripts/release.sh"
 )
 
@@ -39,4 +40,12 @@ if command -v swiftc >/dev/null 2>&1; then
 else
   printf '\n==> helper build\n'
   printf 'skipped: swiftc not found\n'
+fi
+
+if command -v swiftc >/dev/null 2>&1 && [[ -d /System/Library/Frameworks/AppKit.framework ]]; then
+  printf '\n==> menu bar build\n'
+  ./scripts/build-menu-bar.sh >/dev/null
+else
+  printf '\n==> menu bar build\n'
+  printf 'skipped: swiftc or AppKit not found\n'
 fi

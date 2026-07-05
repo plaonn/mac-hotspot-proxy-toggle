@@ -3,17 +3,24 @@ set -euo pipefail
 
 LABEL="com.github.plaonn.hotspot-proxy-toggle"
 HELPER_LABEL="$LABEL.helper"
+MENU_BAR_LABEL="$LABEL.menu"
 SOURCE_DIR="$(cd "$(/usr/bin/dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 INSTALL_ROOT="${HOTSPOT_PROXY_INSTALL_ROOT:-$HOME/.local/share/hotspot-proxy-toggle}"
 INSTALL_BIN="$INSTALL_ROOT/bin/hotspot-proxy-toggle"
 HELPER_BIN="$INSTALL_ROOT/bin/hotspot-proxy-toggle-helper"
+MENU_BAR_BIN="$INSTALL_ROOT/bin/hotspot-proxy-toggle-menu"
 BIN_LINK="$HOME/.local/bin/hotspot-proxy-toggle"
 CONFIG_PATH="${HOTSPOT_PROXY_CONFIG:-$HOME/.config/hotspot-proxy-toggle.conf}"
 PLIST_PATH="$HOME/Library/LaunchAgents/$LABEL.plist"
 HELPER_PLIST_PATH="$HOME/Library/LaunchAgents/$HELPER_LABEL.plist"
+MENU_BAR_PLIST_PATH="$HOME/Library/LaunchAgents/$MENU_BAR_LABEL.plist"
 LOG_DIR="$HOME/Library/Logs"
 CHECK_INTERVAL_SECONDS="${CHECK_INTERVAL_SECONDS:-60}"
 HOTSPOT_TRIGGER_MODE="${HOTSPOT_TRIGGER_MODE:-}"
+HOTSPOT_MENU_BAR="${HOTSPOT_MENU_BAR:-0}"
+MENU_BAR_REFRESH_SECONDS="${MENU_BAR_REFRESH_SECONDS:-30}"
+MENU_BAR_TITLE="${MENU_BAR_TITLE:-MHP}"
+MENU_BAR_INSTALLED=0
 HELPER_DEBOUNCE_SECONDS="${HELPER_DEBOUNCE_SECONDS:-1}"
 HELPER_MAX_RUNS="${HELPER_MAX_RUNS:-3}"
 HELPER_WINDOW_SECONDS="${HELPER_WINDOW_SECONDS:-10}"
@@ -113,6 +120,28 @@ write_helper_launch_agent() {
   printf 'Wrote helper LaunchAgent: %s\n' "$HELPER_PLIST_PATH"
 }
 
+write_menu_bar_launch_agent() {
+  local escaped_menu escaped_bin escaped_log_dir escaped_refresh escaped_title
+
+  /bin/mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
+
+  escaped_menu="$(escape_sed_replacement "$MENU_BAR_BIN")"
+  escaped_bin="$(escape_sed_replacement "$INSTALL_BIN")"
+  escaped_log_dir="$(escape_sed_replacement "$LOG_DIR")"
+  escaped_refresh="$(escape_sed_replacement "$MENU_BAR_REFRESH_SECONDS")"
+  escaped_title="$(escape_sed_replacement "$MENU_BAR_TITLE")"
+
+  /usr/bin/sed \
+    -e "s|__MENU_BIN__|$escaped_menu|g" \
+    -e "s|__INSTALL_BIN__|$escaped_bin|g" \
+    -e "s|__LOG_DIR__|$escaped_log_dir|g" \
+    -e "s|__MENU_REFRESH_SECONDS__|$escaped_refresh|g" \
+    -e "s|__MENU_BAR_TITLE__|$escaped_title|g" \
+    "$SOURCE_DIR/launchd/$MENU_BAR_LABEL.plist.in" >"$MENU_BAR_PLIST_PATH"
+
+  printf 'Wrote menu bar LaunchAgent: %s\n' "$MENU_BAR_PLIST_PATH"
+}
+
 install_files() {
   /bin/mkdir -p "$INSTALL_ROOT/bin" "$HOME/.local/bin"
   /usr/bin/install -m 755 "$SOURCE_DIR/bin/hotspot-proxy-toggle" "$INSTALL_BIN"
@@ -132,6 +161,17 @@ install_helper_file() {
   printf 'Installed helper: %s\n' "$output"
 }
 
+install_menu_bar_file() {
+  local output
+
+  if ! output="$(BUILD_DIR="$INSTALL_ROOT/bin" "$SOURCE_DIR/scripts/build-menu-bar.sh" 2>&1)"; then
+    printf '%s\n' "$output" >&2
+    return 1
+  fi
+  /bin/chmod 755 "$MENU_BAR_BIN"
+  printf 'Installed menu bar companion: %s\n' "$output"
+}
+
 unload_launch_agent() {
   local plist_path="$1"
 
@@ -139,8 +179,10 @@ unload_launch_agent() {
 }
 
 cleanup_managed_runtime() {
+  unload_launch_agent "$MENU_BAR_PLIST_PATH"
   unload_launch_agent "$HELPER_PLIST_PATH"
   unload_launch_agent "$PLIST_PATH"
+  /bin/rm -f "$MENU_BAR_PLIST_PATH"
   /bin/rm -f "$HELPER_PLIST_PATH"
   /bin/rm -f "$PLIST_PATH"
   printf 'Stopped managed LaunchAgents\n'
@@ -183,6 +225,31 @@ install_polling_launch_agent() {
   load_launch_agent "$LABEL" "$PLIST_PATH" || return 1
 }
 
+install_menu_bar_launch_agent() {
+  if [[ "$HOTSPOT_MENU_BAR" != "1" ]]; then
+    return 0
+  fi
+
+  if ! install_menu_bar_file; then
+    printf 'Menu bar diagnostic: failed to build or install companion binary\n' >&2
+    printf 'Hint: install Xcode Command Line Tools or run scripts/build-menu-bar.sh for details\n' >&2
+    return 1
+  fi
+
+  if ! write_menu_bar_launch_agent; then
+    printf 'Menu bar diagnostic: failed to write LaunchAgent plist: %s\n' "$MENU_BAR_PLIST_PATH" >&2
+    return 1
+  fi
+
+  if ! load_launch_agent "$MENU_BAR_LABEL" "$MENU_BAR_PLIST_PATH"; then
+    printf 'Menu bar diagnostic: failed to load LaunchAgent: %s\n' "$MENU_BAR_LABEL" >&2
+    printf 'Hint: inspect with launchctl print "gui/%s/%s"\n' "$(/usr/bin/id -u)" "$MENU_BAR_LABEL" >&2
+    return 1
+  fi
+
+  MENU_BAR_INSTALLED=1
+}
+
 main() {
   resolve_trigger_mode || return
   cleanup_managed_runtime || return
@@ -200,7 +267,12 @@ main() {
     install_polling_launch_agent || return
   fi
 
+  if ! install_menu_bar_launch_agent; then
+    printf 'Menu bar companion install failed; continuing without menu bar item\n' >&2
+  fi
+
   printf 'Trigger mode: %s\n' "$HOTSPOT_TRIGGER_MODE"
+  printf 'Menu bar: %s\n' "$([[ "$MENU_BAR_INSTALLED" == "1" ]] && printf 'enabled' || printf 'disabled')"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

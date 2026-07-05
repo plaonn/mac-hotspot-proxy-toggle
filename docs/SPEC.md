@@ -45,6 +45,35 @@ helper는 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decis
 
 설치 기본값은 event-driven helper LaunchAgent임. helper build 또는 helper LaunchAgent 설치가 실패하면 `install.sh`는 polling LaunchAgent로 fallback함. `HOTSPOT_TRIGGER_MODE=polling`을 명시하면 polling LaunchAgent를 강제로 설치함.
 
+## Menu Bar Companion
+
+`Sources/hotspot-proxy-toggle-menu/main.swift`에는 opt-in menu bar companion이 있음.
+
+Companion은 아래 역할만 함:
+
+- macOS menu bar status area에 기본 title `MHP`를 표시함.
+- 주기적으로 `hotspot-proxy-toggle status`를 child process로 호출해 상태 menu를 갱신함.
+- 사용자가 menu에서 `Reconcile Now`를 선택하면 `hotspot-proxy-toggle run`을 한 번 호출함.
+- `Refresh Status`는 proxy setting을 변경하지 않고 `status`만 다시 호출함.
+- `Quit MHP`는 companion process만 종료함.
+
+Companion은 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음. 상태 표시는 `status=hotspot`, `status=not-hotspot`, `status=not-wifi`, `status=no-router`, `proxy_check=...-missing` 같은 runtime command output에서 파생함.
+
+Companion LaunchAgent는 opt-in임. Source installer에서 `HOTSPOT_MENU_BAR=1`을 지정한 경우에만 아래 LaunchAgent를 생성하고 load함:
+
+```text
+~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.menu.plist
+```
+
+Companion tuning key:
+
+```bash
+MENU_BAR_REFRESH_SECONDS=30
+MENU_BAR_TITLE=MHP
+```
+
+Companion LaunchAgent는 `KeepAlive`를 사용하지 않음. 사용자가 menu에서 `Quit MHP`를 선택하면 launchd가 즉시 재시작하지 않아야 함.
+
 ## 설정
 
 기본 config path:
@@ -170,6 +199,21 @@ HELPER_WATCHDOG_SECONDS=60
 
 `HELPER_WATCHDOG_SECONDS=0`이면 endpoint watchdog을 비활성화함.
 
+menu bar companion을 같이 시작하려면 source install 시 `HOTSPOT_MENU_BAR=1`을 지정함:
+
+```bash
+HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
+```
+
+이 경우 아래 파일과 LaunchAgent를 추가로 설치함:
+
+```text
+~/.local/share/hotspot-proxy-toggle/bin/hotspot-proxy-toggle-menu
+~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.menu.plist
+```
+
+`MENU_BAR_REFRESH_SECONDS`로 상태 refresh 간격을, `MENU_BAR_TITLE`로 menu bar title을 바꿀 수 있음.
+
 helper build, helper LaunchAgent plist 생성, helper LaunchAgent load 중 하나가 실패하면 installer는 실패 단계와 확인 힌트를 출력한 뒤 아래 polling LaunchAgent를 설치함. `HOTSPOT_TRIGGER_MODE=polling`을 명시한 경우에도 polling LaunchAgent를 설치하고 helper LaunchAgent는 제거함:
 
 ```text
@@ -189,6 +233,7 @@ hotspot-proxy-toggle run
 ```text
 <prefix>/bin/hotspot-proxy-toggle
 <prefix>/libexec/hotspot-proxy-toggle-helper
+<prefix>/libexec/hotspot-proxy-toggle-menu
 <prefix>/etc/hotspot-proxy-toggle.conf.example
 ```
 
@@ -196,4 +241,4 @@ hotspot-proxy-toggle run
 
 ## 제거
 
-`uninstall.sh`는 polling/helper LaunchAgent를 모두 unload하고, 설치된 binary tree와 command symlink를 제거하며, config file은 유지함.
+`uninstall.sh`는 polling/helper/menu LaunchAgent를 모두 unload하고, 설치된 binary tree와 command symlink를 제거하며, config file은 유지함.

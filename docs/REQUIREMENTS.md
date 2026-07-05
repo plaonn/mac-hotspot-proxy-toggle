@@ -68,3 +68,11 @@
 - 방지 실패: active Wi-Fi가 바뀌었지만 proxy setting은 이미 꺼져 있어 write가 발생하지 않은 경우를 사용자가 놓치는 일을 막음. 반면 Wi-Fi가 active route가 아니거나 router가 아직 없는 transient 상태의 불필요한 알림은 피함.
 - 명세: `NOTIFY_ON_CHANGE=1`이면 `run`당 최대 한 번 notification을 표시함. 실제 proxy setting 변경이 있거나, hotspot match/endpoint availability를 반영한 state key가 이전 `run`과 달라졌을 때 표시함. default route가 Wi-Fi가 아니거나 Wi-Fi router가 아직 확인되지 않은 상태에서는 notification을 표시하지 않고 state file만 갱신함. 같은 state가 유지되거나 `DRY_RUN=1`이면 표시하지 않음. Notification은 hotspot proxy active, hotspot-but-proxy-unavailable, active-Wi-Fi-but-not-configured-hotspot을 서로 다른 title과 emoji로 구분함. `NOTIFICATION_LOCALE=auto`는 macOS 언어 설정을 읽고, `en` 또는 `ko` override를 지원함. Notification message에는 SSID, router IP, local path 같은 환경별 값을 포함하지 않음. Notification 실패는 reconciliation 실패로 취급하지 않음.
 - 테스트: `./tests/run.sh`는 notification이 opt-in이고, proxy enable, endpoint unavailable, proxy write 없는 SSID context 변경에서 최종 상태 notification이 생성되는지, not-Wi-Fi/no-router에서는 notification 없이 state만 기록되는지, 한국어 locale override를 검증함.
+
+## R8: Menu Bar Companion
+
+- 요구사항: 사용자가 명시적으로 켠 경우, macOS menu bar status area에 `MHP` 상태 항목을 표시함.
+- 근거: background helper와 notification만으로는 현재 상태를 상시 확인하거나 즉시 수동 reconcile을 실행하기 어려움.
+- 방지 실패: 상태 표시 요구를 runtime script 안의 persistent UI loop로 구현해 single-shot reconciliation 경계를 깨는 일을 막음.
+- 명세: menu bar companion은 별도 Swift binary로 제공함. Companion은 `hotspot-proxy-toggle status`를 주기적으로 호출해 상태만 표시하고, 사용자가 메뉴에서 `Reconcile Now`를 선택한 경우에만 `hotspot-proxy-toggle run`을 호출함. Companion은 hotspot/proxy decision이나 macOS proxy write policy를 재구현하지 않음. Source installer는 `HOTSPOT_MENU_BAR=1`일 때만 companion LaunchAgent를 설치하고 시작함.
+- 테스트: `./tests/install.sh`는 menu bar companion이 opt-in 설치이고, companion build/load 실패가 core helper 또는 polling install을 중단하지 않는지 검증함. `scripts/validate.sh`는 AppKit을 사용할 수 있는 macOS 환경에서 companion build를 검증함.

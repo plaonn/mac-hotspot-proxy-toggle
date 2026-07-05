@@ -51,7 +51,7 @@ helper는 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decis
 
 Companion은 아래 역할만 함:
 
-- macOS menu bar status area에 기본 title `MHP`를 표시함.
+- macOS menu bar status area에 기본적으로 icon-only status item을 표시함.
 - `hotspot-proxy-toggle run`/`off`가 쓰는 UI state JSON을 watch해 상태 menu를 갱신함.
 - UI state JSON이 아직 없거나 읽을 수 없으면 `hotspot-proxy-toggle status`를 child process로 호출해 상태 menu를 갱신함.
 - 사용자가 menu에서 `Reconcile Now`를 선택하면 `hotspot-proxy-toggle run`을 한 번 호출함.

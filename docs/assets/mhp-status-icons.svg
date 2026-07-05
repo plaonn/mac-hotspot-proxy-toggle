@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="220" viewBox="0 0 760 220" role="img" aria-labelledby="title desc">
+  <title id="title">MHP menu bar status icons</title>
+  <desc id="desc">Three MHP status icons: hotspot proxy on, non-hotspot, and hotspot proxy unavailable.</desc>
+  <defs>
+    <mask id="knockout-hotspot" maskUnits="userSpaceOnUse">
+      <rect width="760" height="220" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-width="13.78" stroke-linecap="round">
+        <path d="M 92.44 108.48 A 24.89 24.89 0 0 1 117.33 133.37"/>
+        <path d="M 92.44 83.59 A 49.78 49.78 0 0 1 142.22 133.37"/>
+      </g>
+      <circle cx="92.44" cy="133.37" r="8.89" fill="#000"/>
+    </mask>
+    <mask id="knockout-off" maskUnits="userSpaceOnUse">
+      <rect width="760" height="220" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-width="13.78" stroke-linecap="round">
+        <path d="M 612.44 108.48 A 24.89 24.89 0 0 1 637.33 133.37"/>
+        <path d="M 612.44 83.59 A 49.78 49.78 0 0 1 662.22 133.37"/>
+      </g>
+      <circle cx="612.44" cy="133.37" r="8.89" fill="#000"/>
+      <path d="M 578.67 179.78 L 695.56 44.89" fill="none" stroke="#000" stroke-width="19.11" stroke-linecap="round"/>
+    </mask>
+  </defs>
+
+  <rect width="760" height="220" rx="18" fill="#f6f7f8"/>
+  <g fill="#222">
+    <rect x="65.78" y="49.11" width="104.89" height="121.78" rx="20.89" mask="url(#knockout-hotspot)"/>
+  </g>
+  <text x="118" y="198" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="20" fill="#24292f">Hotspot + Proxy On</text>
+
+  <g fill="none" stroke="#222" stroke-linecap="round">
+    <rect x="325.78" y="49.11" width="104.89" height="121.78" rx="20.89" stroke-width="14.67"/>
+    <path d="M 352.44 108.48 A 24.89 24.89 0 0 1 377.33 133.37" stroke-width="13.78"/>
+    <path d="M 352.44 83.59 A 49.78 49.78 0 0 1 402.22 133.37" stroke-width="13.78"/>
+  </g>
+  <circle cx="352.44" cy="133.37" r="8.89" fill="#222"/>
+  <text x="378" y="198" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="20" fill="#24292f">Non-Hotspot / Idle</text>
+
+  <g fill="#222">
+    <rect x="585.78" y="49.11" width="104.89" height="121.78" rx="20.89" mask="url(#knockout-off)"/>
+  </g>
+  <text x="638" y="198" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="20" fill="#24292f">Hotspot + Proxy Off</text>
+</svg>

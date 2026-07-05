@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="320" viewBox="0 0 760 320" role="img" aria-labelledby="title desc">
+  <title id="title">MHP menu preview</title>
+  <desc id="desc">An illustrative macOS menu preview showing the MHP status item and menu actions.</desc>
+  <defs>
+    <mask id="preview-icon" maskUnits="userSpaceOnUse">
+      <rect width="760" height="320" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-width="5.36" stroke-linecap="round">
+        <path d="M 553.37 26.73 A 9.68 9.68 0 0 1 563.05 36.41"/>
+        <path d="M 553.37 17.05 A 19.36 19.36 0 0 1 572.73 36.41"/>
+      </g>
+      <circle cx="553.37" cy="36.41" r="3.46" fill="#000"/>
+    </mask>
+  </defs>
+
+  <rect width="760" height="320" rx="22" fill="#f6f7f8"/>
+  <rect x="40" y="24" width="680" height="32" rx="11" fill="#222"/>
+  <circle cx="72" cy="40" r="5" fill="#b8b8b8"/>
+  <circle cx="92" cy="40" r="5" fill="#b8b8b8"/>
+  <circle cx="112" cy="40" r="5" fill="#b8b8b8"/>
+  <rect x="543" y="20" width="40.82" height="47.36" rx="8.12" fill="#fff" mask="url(#preview-icon)"/>
+
+  <rect x="405" y="72" width="295" height="214" rx="14" fill="#fff" stroke="#d0d7de"/>
+  <text x="430" y="110" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="18" fill="#24292f">상태: 핫스팟 프록시 켜짐</text>
+  <line x1="405" y1="130" x2="700" y2="130" stroke="#d8dee4"/>
+  <text x="430" y="166" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="18" fill="#24292f">Refresh Status</text>
+  <text x="430" y="204" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="18" fill="#24292f">Reconcile Now</text>
+  <line x1="405" y1="226" x2="700" y2="226" stroke="#d8dee4"/>
+  <text x="430" y="260" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="18" fill="#57606a">Quit MHP</text>
+
+  <text x="60" y="120" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="28" font-weight="600" fill="#24292f">메뉴바 상태 아이콘</text>
+  <text x="60" y="158" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="17" fill="#57606a">실제 아이콘은 macOS template image임.</text>
+  <text x="60" y="184" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="17" fill="#57606a">light/dark mode tint를 따름.</text>
+</svg>

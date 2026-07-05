@@ -5,6 +5,7 @@ CONFIG_PATH="${HOTSPOT_PROXY_CONFIG:-$HOME/.config/hotspot-proxy-toggle.conf}"
 LOG_PATH="${HOTSPOT_PROXY_LOG:-$HOME/Library/Logs/hotspot-proxy-toggle.log}"
 STATE_PATH="${HOTSPOT_PROXY_STATE:-$HOME/Library/Application Support/hotspot-proxy-toggle/state}"
 UI_STATE_PATH="${HOTSPOT_PROXY_UI_STATE:-$HOME/Library/Application Support/hotspot-proxy-toggle/status.json}"
+NOTIFICATION_SENDER="${HOTSPOT_NOTIFICATION_SENDER:-$HOME/Applications/MHP.app/Contents/MacOS/hotspot-proxy-toggle-menu}"
 
 NETWORK_SERVICE="${NETWORK_SERVICE:-Wi-Fi}"
 WIFI_DEVICE="${WIFI_DEVICE:-}"
@@ -48,6 +49,7 @@ Optional:
   NOTIFICATION_LOCALE=auto
   HOTSPOT_PROXY_STATE="$HOME/Library/Application Support/hotspot-proxy-toggle/state"
   HOTSPOT_PROXY_UI_STATE="$HOME/Library/Application Support/hotspot-proxy-toggle/status.json"
+  HOTSPOT_NOTIFICATION_SENDER="$HOME/Applications/MHP.app/Contents/MacOS/hotspot-proxy-toggle-menu"
 EOF
 }
 
@@ -76,6 +78,7 @@ load_config() {
   NOTIFICATION_LOCALE="${NOTIFICATION_LOCALE:-auto}"
   STATE_PATH="${HOTSPOT_PROXY_STATE:-${STATE_PATH:-$HOME/Library/Application Support/hotspot-proxy-toggle/state}}"
   UI_STATE_PATH="${HOTSPOT_PROXY_UI_STATE:-${UI_STATE_PATH:-$HOME/Library/Application Support/hotspot-proxy-toggle/status.json}}"
+  NOTIFICATION_SENDER="${HOTSPOT_NOTIFICATION_SENDER:-${NOTIFICATION_SENDER:-$HOME/Applications/MHP.app/Contents/MacOS/hotspot-proxy-toggle-menu}}"
 }
 
 validate_config() {
@@ -389,6 +392,11 @@ send_macos_notification() {
   local title="$1"
   local body="$2"
   local escaped_title escaped_body
+
+  if [[ -x "$NOTIFICATION_SENDER" ]] &&
+     "$NOTIFICATION_SENDER" --notify --title "$title" --body "$body" >/dev/null 2>&1; then
+    return 0
+  fi
 
   if [[ ! -x /usr/bin/osascript ]]; then
     log "notification skipped: osascript not found"

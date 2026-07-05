@@ -222,7 +222,7 @@ Notification은 세 상태를 구분합니다.
 - `⚠️ Hotspot Proxy Unavailable`: 핫스팟은 감지됐지만 프록시 서버가 응답하지 않습니다.
 - `ℹ️ Hotspot Proxy Idle`: 현재 Wi-Fi가 설정한 핫스팟이 아니어서 프록시를 사용하지 않습니다.
 
-Notification은 현재 macOS `osascript` notification을 사용하므로 sender icon을 상태별 custom icon으로 지정하지 않습니다. Notification title의 emoji는 상태 구분 보조 신호로 유지합니다.
+Notification은 설치된 `MHP.app` sender를 우선 사용해 App icon으로 표시되게 시도합니다. App sender를 사용할 수 없으면 기존 macOS `osascript` notification으로 되돌아갑니다. 상태별 custom notification icon은 사용하지 않으므로 title의 emoji는 상태 구분 보조 신호로 유지합니다.
 
 Wi-Fi가 현재 기본 네트워크 경로가 아니거나 Wi-Fi router가 아직 확인되지 않은 transient 상태에서는 사용자 알림을 표시하지 않고, 내부 state만 기록합니다.
 

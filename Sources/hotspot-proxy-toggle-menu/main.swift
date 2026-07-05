@@ -2,11 +2,6 @@ import AppKit
 import Darwin
 import Foundation
 
-let instanceLockFD = acquireSingleInstanceLock()
-if instanceLockFD == nil {
-    exit(0)
-}
-
 struct MenuConfig {
     var command = defaultCommandPath()
     var statePath = defaultStatePath()
@@ -65,6 +60,44 @@ struct MenuConfig {
             }
 
             index += 1
+        }
+
+        return config
+    }
+}
+
+struct NotificationConfig {
+    var title = ""
+    var body = ""
+
+    static func parse(_ arguments: [String]) throws -> NotificationConfig {
+        var config = NotificationConfig()
+        var index = 2
+
+        while index < arguments.count {
+            let arg = arguments[index]
+            switch arg {
+            case "--title":
+                index += 1
+                guard index < arguments.count else {
+                    throw UsageError("missing value for --title")
+                }
+                config.title = arguments[index]
+            case "--body":
+                index += 1
+                guard index < arguments.count else {
+                    throw UsageError("missing value for --body")
+                }
+                config.body = arguments[index]
+            default:
+                throw UsageError("unknown notification argument: \(arg)")
+            }
+
+            index += 1
+        }
+
+        guard !config.title.isEmpty || !config.body.isEmpty else {
+            throw UsageError("notification title or body is required")
         }
 
         return config
@@ -727,11 +760,21 @@ func printUsage() {
 }
 
 do {
-    let config = try MenuConfig.parse(CommandLine.arguments)
-    let app = NSApplication.shared
-    let delegate = MenuBarApp(config: config)
-    app.delegate = delegate
-    app.run()
+    if CommandLine.arguments.dropFirst().first == "--notify" {
+        let config = try NotificationConfig.parse(CommandLine.arguments)
+        sendBundledNotification(title: config.title, body: config.body)
+    } else {
+        guard let instanceLockFD = acquireSingleInstanceLock() else {
+            exit(0)
+        }
+
+        let config = try MenuConfig.parse(CommandLine.arguments)
+        let app = NSApplication.shared
+        let delegate = MenuBarApp(config: config)
+        app.delegate = delegate
+        _ = instanceLockFD
+        app.run()
+    }
 } catch let error as UsageError {
     fputs("error: \(error.description)\n", stderr)
     printUsage()
@@ -739,4 +782,12 @@ do {
 } catch {
     fputs("error: \(error)\n", stderr)
     exit(1)
+}
+
+func sendBundledNotification(title: String, body: String) {
+    let notification = NSUserNotification()
+    notification.title = title
+    notification.informativeText = body
+    NSUserNotificationCenter.default.deliver(notification)
+    RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.5))
 }

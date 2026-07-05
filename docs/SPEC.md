@@ -217,7 +217,7 @@ macOS proxy setting을 켜기 전에 아래 응답을 요구함:
 
 ## Notification
 
-Notification은 runtime command의 부가 출력 경로임. `bin/hotspot-proxy-toggle run`은 `NOTIFY_ON_CHANGE=1`일 때 macOS `/usr/bin/osascript`의 `display notification`을 사용해 최종 proxy state를 표시함.
+Notification은 runtime command의 부가 출력 경로임. `bin/hotspot-proxy-toggle run`은 `NOTIFY_ON_CHANGE=1`일 때 설치된 `MHP.app/Contents/MacOS/hotspot-proxy-toggle-menu --notify`를 우선 호출해 최종 proxy state를 표시함. App sender를 사용할 수 없거나 실패하면 macOS `/usr/bin/osascript`의 `display notification`으로 fallback함.
 
 Notification은 아래 원칙을 따름:
 
@@ -228,7 +228,7 @@ Notification은 아래 원칙을 따름:
 - 중복 알림을 막기 위해 마지막 notification state를 local state file에 저장함. `HOTSPOT_PROXY_STATE`로 경로를 override할 수 있음.
 - `NOTIFICATION_LOCALE=auto`이면 macOS 언어 설정을 읽어 한국어 환경에서는 한국어 문구를 사용하고, 그 외에는 영어 문구를 사용함. `en` 또는 `ko`로 고정할 수 있음.
 - Notification title은 3개 상태로 나뉨: hotspot proxy active는 `✅ Hotspot Proxy On`, hotspot은 맞지만 endpoint가 unavailable이면 `⚠️ Hotspot Proxy Unavailable`, active Wi-Fi가 설정한 hotspot이 아니면 `ℹ️ Hotspot Proxy Idle`. 한국어 locale에서는 각각 `✅ 핫스팟 프록시 켜짐`, `⚠️ 핫스팟 프록시 사용 불가`, `ℹ️ 핫스팟 대기`를 사용함.
-- Notification은 현재 macOS `/usr/bin/osascript`의 `display notification`을 사용하므로 sender icon을 상태별 custom icon으로 지정하지 않음. Notification title의 emoji는 상태 구분 보조 신호로 유지함.
+- Notification sender는 가능한 경우 `MHP.app` bundle executable이므로 notification은 고정 MHP app icon으로 표시될 수 있음. 상태별 custom notification icon은 지정하지 않음. Notification title의 emoji는 상태 구분 보조 신호로 유지함.
 - 라우터 IP, SSID, local path 같은 환경별 값을 message에 포함하지 않음.
 - `osascript` 실행에 실패해도 reconciliation 자체는 실패시키지 않고 log에만 남김.
 
@@ -278,6 +278,8 @@ HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
 ```
 
 `MENU_BAR_REFRESH_SECONDS`로 상태 refresh 간격을, `MENU_BAR_TITLE`로 menu bar title을, `MENU_BAR_LOCALE=auto|en|ko`로 menu language를 바꿀 수 있음. `MENU_BAR_TITLE` 기본값은 빈 문자열이며 이 경우 status item은 icon-only로 표시됨.
+
+`HOTSPOT_NOTIFICATION_SENDER`로 notification sender executable path를 override할 수 있음. 기본값은 `~/Applications/MHP.app/Contents/MacOS/hotspot-proxy-toggle-menu`임.
 
 source installer는 기본적으로 Finder 실행용 app bundle도 설치함:
 

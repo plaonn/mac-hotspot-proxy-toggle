@@ -520,14 +520,14 @@ final class AutomationController {
         if enabled {
             try writeLaunchAgents()
             _ = runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(helperLabel)"])
-            _ = runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(menuLabel)"])
             _ = runLaunchctl(arguments: ["bootstrap", "gui/\(getuid())", helperPlistPath])
             _ = runLaunchctl(arguments: ["kickstart", "-k", "gui/\(getuid())/\(helperLabel)"])
-            _ = runLaunchctl(arguments: ["bootstrap", "gui/\(getuid())", menuPlistPath])
-            _ = runLaunchctl(arguments: ["kickstart", "-k", "gui/\(getuid())/\(menuLabel)"])
+            if !launchAgentIsLoaded(label: menuLabel) {
+                _ = runLaunchctl(arguments: ["bootstrap", "gui/\(getuid())", menuPlistPath])
+                _ = runLaunchctl(arguments: ["kickstart", "-k", "gui/\(getuid())/\(menuLabel)"])
+            }
         } else {
             _ = runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(helperLabel)"])
-            _ = runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(menuLabel)"])
             try? FileManager.default.removeItem(atPath: helperPlistPath)
             try? FileManager.default.removeItem(atPath: menuPlistPath)
         }
@@ -656,6 +656,10 @@ final class AutomationController {
 
     private var menuLabel: String {
         "com.github.plaonn.hotspot-proxy-toggle.menu"
+    }
+
+    private func launchAgentIsLoaded(label: String) -> Bool {
+        runLaunchctl(arguments: ["print", "gui/\(getuid())/\(label)"]) == 0
     }
 
     private func runLaunchctl(arguments: [String]) -> Int32 {

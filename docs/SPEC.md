@@ -146,14 +146,14 @@ App bundle 원칙:
 - `Proxy Type`: `SOCKS5` 또는 `HTTP/HTTPS Web Proxy`.
 - `Proxy Port`: 현재 핫스팟 router IP에서 proxy server가 listen하는 port.
 - `Language`: `System Default`, `English`, `한국어`.
-- `Start Automatically`: helper LaunchAgent와 menu LaunchAgent를 함께 켜거나 끄는 단일 사용자 toggle.
+- `Start Automatically`: helper LaunchAgent와 menu LaunchAgent를 함께 켜거나 끄는 단일 사용자 toggle. Settings 저장 중 현재 실행 중인 menu app은 종료하지 않음.
 
 Advanced settings:
 
 - `Proxy Check Timeout`: seconds
 - `Watchdog Interval`: seconds
 
-Settings 저장은 whitelisted config key만 갱신하고, legacy `HOTSPOT_SSIDS`, `HOTSPOT_DHCP_MARKERS`, `STRICT_SSID`, `NOTIFICATION_LOCALE` key는 저장 시 제거함. 저장 후 현재 network state에 대해 `hotspot-proxy-toggle run`을 한 번 호출함.
+Settings 저장은 whitelisted config key만 갱신하고, legacy `HOTSPOT_SSIDS`, `HOTSPOT_DHCP_MARKERS`, `STRICT_SSID`, `NOTIFICATION_LOCALE` key는 저장 시 제거함. 저장 후 현재 network state에 대해 `hotspot-proxy-toggle run`을 한 번 호출함. 자동 시작을 끄면 helper/menu LaunchAgent plist는 제거하지만 현재 열려 있는 menu app process는 유지함.
 
 Settings window는 hotspot/proxy decision이나 macOS proxy write policy를 재구현하지 않음.
 

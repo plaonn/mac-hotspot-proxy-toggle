@@ -66,7 +66,7 @@ Settings window는 아래 main settings만 노출합니다.
 - `Proxy Type`: `SOCKS5` 또는 `HTTP/HTTPS Web Proxy`.
 - `Proxy Port`: 휴대폰 핫스팟 router IP에서 proxy server가 listen하는 port.
 - `Language`: `System Default`, `English`, `한국어`.
-- `Start Automatically`: background helper와 menu bar app을 함께 켜거나 끄는 단일 toggle.
+- `Start Automatically`: background helper와 menu bar app의 login 자동 시작을 함께 켜거나 끄는 단일 toggle. 저장 중 현재 열려 있는 menu app은 종료하지 않습니다.
 
 Advanced에는 troubleshooting용 `Proxy Check Timeout (seconds)`와 `Watchdog Interval (seconds)`만 둡니다.
 

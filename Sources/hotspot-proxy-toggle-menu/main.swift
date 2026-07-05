@@ -518,10 +518,12 @@ final class AutomationController {
 
     func setEnabled(_ enabled: Bool) throws {
         if enabled {
-            try writeLaunchAgents()
-            _ = runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(helperLabel)"])
-            _ = runLaunchctl(arguments: ["bootstrap", "gui/\(getuid())", helperPlistPath])
-            _ = runLaunchctl(arguments: ["kickstart", "-k", "gui/\(getuid())/\(helperLabel)"])
+            let helperChanged = try writeLaunchAgents()
+            if helperChanged || !launchAgentIsLoaded(label: helperLabel) {
+                _ = runLaunchctl(arguments: ["bootout", "gui/\(getuid())/\(helperLabel)"])
+                _ = runLaunchctl(arguments: ["bootstrap", "gui/\(getuid())", helperPlistPath])
+                _ = runLaunchctl(arguments: ["kickstart", "-k", "gui/\(getuid())/\(helperLabel)"])
+            }
             if !launchAgentIsLoaded(label: menuLabel) {
                 _ = runLaunchctl(arguments: ["bootstrap", "gui/\(getuid())", menuPlistPath])
                 _ = runLaunchctl(arguments: ["kickstart", "-k", "gui/\(getuid())/\(menuLabel)"])
@@ -533,7 +535,7 @@ final class AutomationController {
         }
     }
 
-    private func writeLaunchAgents() throws {
+    private func writeLaunchAgents() throws -> Bool {
         guard FileManager.default.isExecutableFile(atPath: helperBinaryPath) else {
             throw UsageError("helper binary not found: \(helperBinaryPath)")
         }
@@ -556,10 +558,24 @@ final class AutomationController {
             attributes: nil
         )
 
-        try helperPlist(helper: helperBinaryPath, command: command)
-            .write(toFile: helperPlistPath, atomically: true, encoding: .utf8)
-        try menuPlist(menu: menuBinaryPath, command: command)
-            .write(toFile: menuPlistPath, atomically: true, encoding: .utf8)
+        let helperChanged = try writeIfChanged(
+            helperPlist(helper: helperBinaryPath, command: command),
+            path: helperPlistPath
+        )
+        _ = try writeIfChanged(
+            menuPlist(menu: menuBinaryPath, command: command),
+            path: menuPlistPath
+        )
+        return helperChanged
+    }
+
+    private func writeIfChanged(_ content: String, path: String) throws -> Bool {
+        if let existing = try? String(contentsOfFile: path, encoding: .utf8),
+           existing == content {
+            return false
+        }
+        try content.write(toFile: path, atomically: true, encoding: .utf8)
+        return true
     }
 
     private func helperPlist(helper: String, command: String) -> String {

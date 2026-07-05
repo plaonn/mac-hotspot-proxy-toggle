@@ -13,6 +13,7 @@ scripts=(
   "tests/install.sh"
   "scripts/validate.sh"
   "scripts/build-helper.sh"
+  "scripts/release.sh"
 )
 
 printf '==> bash syntax\n'

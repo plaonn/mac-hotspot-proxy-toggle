@@ -313,7 +313,7 @@ run_uses_korean_idle_notification_copy() {
 
   do_run >/dev/null
 
-  [[ "${NOTIFICATIONS[*]-}" == "ℹ️ 핫스팟 프록시 대기:현재 Wi-Fi는 설정한 핫스팟이 아닙니다." ]]
+  [[ "${NOTIFICATIONS[*]-}" == "ℹ️ 핫스팟 대기:현재 Wi-Fi는 설정한 핫스팟이 아닙니다." ]]
 }
 
 run_records_not_wifi_without_notification() {

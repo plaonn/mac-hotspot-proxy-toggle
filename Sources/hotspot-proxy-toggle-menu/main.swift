@@ -112,7 +112,7 @@ enum ProxySummary {
             case .checking: return "확인 중"
             case .on: return "✅ 핫스팟 프록시 켜짐"
             case .unavailable: return "⚠️ 핫스팟 프록시 사용 불가"
-            case .idle: return "ℹ️ 핫스팟 프록시 대기"
+            case .idle: return "ℹ️ 핫스팟 대기"
             case .off: return "MHP 꺼짐"
             case .notWiFi: return "Wi-Fi 준비 안 됨"
             case .error: return "MHP 오류"

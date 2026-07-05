@@ -345,7 +345,7 @@ notification_title() {
   case "$locale:$kind" in
     ko:on) printf '✅ 핫스팟 프록시 켜짐' ;;
     ko:unavailable) printf '⚠️ 핫스팟 프록시 사용 불가' ;;
-    ko:idle) printf 'ℹ️ 핫스팟 프록시 대기' ;;
+    ko:idle) printf 'ℹ️ 핫스팟 대기' ;;
     en:on) printf '✅ Hotspot Proxy On' ;;
     en:unavailable) printf '⚠️ Hotspot Proxy Unavailable' ;;
     en:idle) printf 'ℹ️ Hotspot Proxy Idle' ;;

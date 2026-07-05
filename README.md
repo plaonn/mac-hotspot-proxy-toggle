@@ -141,6 +141,12 @@ Menu bar companion이 켜지면 아래 파일이 추가됩니다.
 ~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.menu.plist
 ```
 
+Menu bar status item은 `MHP` title 옆에 상태 아이콘을 표시합니다. 아이콘은 같은 휴대폰 핫스팟 glyph를 세 가지 형태로 구분합니다.
+
+- 채워진 휴대폰: 핫스팟 프록시를 사용 중입니다.
+- 외곽선 휴대폰: 현재 Wi-Fi가 설정한 핫스팟이 아니거나 MHP가 대기 중입니다.
+- 대각선이 있는 채워진 휴대폰: 핫스팟은 감지됐지만 프록시를 사용할 수 없습니다.
+
 Source install은 Finder와 Spotlight에서 실행할 수 있는 `MHP.app`도 설치합니다.
 
 ```text

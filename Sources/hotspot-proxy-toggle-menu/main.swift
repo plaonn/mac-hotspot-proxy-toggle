@@ -163,6 +163,150 @@ enum ProxySummary {
             }
         }
     }
+
+    var iconStyle: MenuBarIcon.Style {
+        switch self {
+        case .on:
+            return .hotspotProxyOn
+        case .unavailable, .error:
+            return .hotspotProxyOff
+        case .checking, .idle, .off, .notWiFi:
+            return .nonHotspot
+        }
+    }
+}
+
+enum MenuBarIcon {
+    enum Style {
+        case hotspotProxyOn
+        case nonHotspot
+        case hotspotProxyOff
+    }
+
+    static func image(for style: Style) -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: true) { rect in
+            NSColor.black.set()
+
+            switch style {
+            case .hotspotProxyOn:
+                fillPhone(in: rect)
+                clearHotspotMark(in: rect)
+            case .nonHotspot:
+                strokePhone(in: rect)
+                drawHotspotMark(in: rect)
+            case .hotspotProxyOff:
+                fillPhone(in: rect)
+                clearHotspotMark(in: rect)
+                clearProxyOffSlash(in: rect)
+            }
+
+            return true
+        }
+
+        image.isTemplate = true
+        image.size = size
+        return image
+    }
+
+    private static func fillPhone(in rect: NSRect) {
+        let phone = phoneRect(in: rect)
+        NSBezierPath(roundedRect: phone, xRadius: scaledX(2.35, in: rect), yRadius: scaledY(2.35, in: rect)).fill()
+    }
+
+    private static func strokePhone(in rect: NSRect) {
+        let phone = phoneRect(in: rect).insetBy(dx: scaledX(0.825, in: rect), dy: scaledY(0.825, in: rect))
+        let path = NSBezierPath(
+            roundedRect: phone,
+            xRadius: scaledX(1.55, in: rect),
+            yRadius: scaledY(1.55, in: rect)
+        )
+        path.lineWidth = scaledStroke(1.65, in: rect)
+        path.stroke()
+    }
+
+    private static func drawHotspotMark(in rect: NSRect) {
+        NSColor.black.set()
+        hotspotDot(in: rect).fill()
+        hotspotArc(in: rect, radius: 2.8).stroke()
+        hotspotArc(in: rect, radius: 5.6).stroke()
+    }
+
+    private static func clearHotspotMark(in rect: NSRect) {
+        withClearBlend {
+            hotspotDot(in: rect).fill()
+            hotspotArc(in: rect, radius: 2.8).stroke()
+            hotspotArc(in: rect, radius: 5.6).stroke()
+        }
+    }
+
+    private static func clearProxyOffSlash(in rect: NSRect) {
+        withClearBlend {
+            let path = NSBezierPath()
+            path.move(to: point(x: 3.0, y: 16.75, in: rect))
+            path.line(to: point(x: 16.15, y: 1.55, in: rect))
+            path.lineWidth = scaledStroke(2.15, in: rect)
+            path.lineCapStyle = .round
+            path.stroke()
+        }
+    }
+
+    private static func hotspotDot(in rect: NSRect) -> NSBezierPath {
+        let center = point(x: 6.85, y: 11.55, in: rect)
+        let radius = min(scaledX(1.0, in: rect), scaledY(1.0, in: rect))
+        return NSBezierPath(ovalIn: NSRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+    }
+
+    private static func hotspotArc(in rect: NSRect, radius: CGFloat) -> NSBezierPath {
+        let center = point(x: 6.85, y: 11.55, in: rect)
+        let path = NSBezierPath()
+        path.appendArc(
+            withCenter: center,
+            radius: min(scaledX(radius, in: rect), scaledY(radius, in: rect)),
+            startAngle: -90,
+            endAngle: 0,
+            clockwise: false
+        )
+        path.lineWidth = scaledStroke(1.55, in: rect)
+        path.lineCapStyle = .round
+        return path
+    }
+
+    private static func phoneRect(in rect: NSRect) -> NSRect {
+        NSRect(
+            x: rect.minX + scaledX(3.8, in: rect),
+            y: rect.minY + scaledY(2.15, in: rect),
+            width: scaledX(11.8, in: rect),
+            height: scaledY(13.7, in: rect)
+        )
+    }
+
+    private static func point(x: CGFloat, y: CGFloat, in rect: NSRect) -> NSPoint {
+        NSPoint(x: rect.minX + scaledX(x, in: rect), y: rect.minY + scaledY(y, in: rect))
+    }
+
+    private static func scaledX(_ value: CGFloat, in rect: NSRect) -> CGFloat {
+        value * rect.width / 18
+    }
+
+    private static func scaledY(_ value: CGFloat, in rect: NSRect) -> CGFloat {
+        value * rect.height / 18
+    }
+
+    private static func scaledStroke(_ value: CGFloat, in rect: NSRect) -> CGFloat {
+        value * min(rect.width, rect.height) / 18
+    }
+
+    private static func withClearBlend(_ draw: () -> Void) {
+        guard let context = NSGraphicsContext.current else {
+            return
+        }
+
+        let previousOperation = context.compositingOperation
+        context.compositingOperation = .clear
+        draw()
+        context.compositingOperation = previousOperation
+    }
 }
 
 struct CommandResult {
@@ -219,6 +363,9 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     private func configureStatusItem() {
         if let button = statusItem.button {
             button.title = config.title
+            button.image = MenuBarIcon.image(for: ProxySummary.checking.iconStyle)
+            button.imagePosition = .imageLeft
+            button.imageScaling = .scaleProportionallyDown
             button.toolTip = ProxySummary.checking.tooltip(locale: config.locale)
         }
 
@@ -286,12 +433,14 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
 
     private func setChecking() {
         statusMenuItem.title = ProxySummary.checking.statusText(locale: config.locale)
+        statusItem.button?.image = MenuBarIcon.image(for: ProxySummary.checking.iconStyle)
         statusItem.button?.toolTip = ProxySummary.checking.tooltip(locale: config.locale)
     }
 
     private func apply(summary: ProxySummary) {
         statusMenuItem.title = summary.statusText(locale: config.locale)
         statusItem.button?.title = config.title
+        statusItem.button?.image = MenuBarIcon.image(for: summary.iconStyle)
         statusItem.button?.toolTip = summary.tooltip(locale: config.locale)
     }
 

@@ -13,10 +13,16 @@ if [[ ! -d /System/Library/Frameworks/AppKit.framework ]]; then
   exit 127
 fi
 
+if [[ ! -x /usr/bin/swift ]]; then
+  printf 'swift not found; cannot generate MHP.app icon\n' >&2
+  exit 127
+fi
+
 /bin/rm -rf "$APP_PATH"
 /bin/mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 BUILD_DIR="$MACOS_DIR" "$ROOT_DIR/scripts/build-menu-bar.sh" >/dev/null
 /bin/cp "$ROOT_DIR/app/MHP-Info.plist.in" "$CONTENTS_DIR/Info.plist"
+/usr/bin/swift "$ROOT_DIR/scripts/generate-app-icon.swift" "$RESOURCES_DIR/MHP.icns" >/dev/null
 
 printf '%s\n' "$APP_PATH"

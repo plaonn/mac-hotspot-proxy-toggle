@@ -11,7 +11,7 @@ struct MenuConfig {
     var command = defaultCommandPath()
     var statePath = defaultStatePath()
     var refreshSeconds = 30.0
-    var title = "MHP"
+    var title = ""
     var locale = MenuLocale.auto
 
     static func parse(_ arguments: [String]) throws -> MenuConfig {
@@ -41,8 +41,8 @@ struct MenuConfig {
                 config.statePath = arguments[index]
             case "--title":
                 index += 1
-                guard index < arguments.count, !arguments[index].isEmpty else {
-                    throw UsageError("invalid value for --title")
+                guard index < arguments.count else {
+                    throw UsageError("missing value for --title")
                 }
                 config.title = arguments[index]
             case "--locale":
@@ -110,9 +110,9 @@ enum ProxySummary {
         case .ko:
             switch self {
             case .checking: return "확인 중"
-            case .on: return "✅ 핫스팟 프록시 켜짐"
-            case .unavailable: return "⚠️ 핫스팟 프록시 사용 불가"
-            case .idle: return "ℹ️ 핫스팟 대기"
+            case .on: return "핫스팟 프록시 켜짐"
+            case .unavailable: return "핫스팟 프록시 사용 불가"
+            case .idle: return "핫스팟 대기"
             case .off: return "MHP 꺼짐"
             case .notWiFi: return "Wi-Fi 준비 안 됨"
             case .error: return "MHP 오류"
@@ -120,9 +120,9 @@ enum ProxySummary {
         case .auto, .en:
             switch self {
             case .checking: return "Checking"
-            case .on: return "✅ Hotspot Proxy On"
-            case .unavailable: return "⚠️ Hotspot Proxy Unavailable"
-            case .idle: return "ℹ️ Hotspot Proxy Idle"
+            case .on: return "Hotspot Proxy On"
+            case .unavailable: return "Hotspot Proxy Unavailable"
+            case .idle: return "Hotspot Proxy Idle"
             case .off: return "MHP Off"
             case .notWiFi: return "Wi-Fi Not Ready"
             case .error: return "MHP Error"
@@ -361,10 +361,11 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     }
 
     private func configureStatusItem() {
+        statusItem.length = config.title.isEmpty ? NSStatusItem.squareLength : NSStatusItem.variableLength
         if let button = statusItem.button {
             button.title = config.title
             button.image = MenuBarIcon.image(for: ProxySummary.checking.iconStyle)
-            button.imagePosition = .imageLeft
+            button.imagePosition = config.title.isEmpty ? .imageOnly : .imageLeft
             button.imageScaling = .scaleProportionallyDown
             button.toolTip = ProxySummary.checking.tooltip(locale: config.locale)
         }
@@ -441,6 +442,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         statusMenuItem.title = summary.statusText(locale: config.locale)
         statusItem.button?.title = config.title
         statusItem.button?.image = MenuBarIcon.image(for: summary.iconStyle)
+        statusItem.button?.imagePosition = config.title.isEmpty ? .imageOnly : .imageLeft
         statusItem.button?.toolTip = summary.tooltip(locale: config.locale)
     }
 
@@ -710,7 +712,7 @@ func printUsage() {
           --command PATH     Command to invoke with 'status' or 'run'.
           --refresh SECS    Status refresh interval. Default: 30.
           --state PATH      UI state JSON path.
-          --title TEXT      Menu bar title. Default: MHP.
+          --title TEXT      Menu bar title. Default: icon only.
           --locale auto|en|ko
                            Menu language. Default: auto.
           -h, --help        Show this help.

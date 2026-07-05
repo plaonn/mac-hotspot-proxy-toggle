@@ -746,8 +746,8 @@ final class SettingsWindowController: NSWindowController {
         stack.addArrangedSubview(startAutomaticallyCheckbox)
         configureSeparator(advancedLabel)
         stack.addArrangedSubview(advancedLabel)
-        stack.addArrangedSubview(row(labelView: timeoutLabel, control: timeoutField))
-        stack.addArrangedSubview(row(labelView: watchdogLabel, control: watchdogField))
+        stack.addArrangedSubview(row(labelView: timeoutLabel, control: timeoutField, labelWidth: 250, controlWidth: 80))
+        stack.addArrangedSubview(row(labelView: watchdogLabel, control: watchdogField, labelWidth: 250, controlWidth: 80))
 
         let buttons = NSStackView()
         buttons.orientation = .horizontal
@@ -768,13 +768,13 @@ final class SettingsWindowController: NSWindowController {
         stack.addArrangedSubview(buttons)
     }
 
-    private func row(labelView: NSTextField, control: NSView) -> NSStackView {
-        labelView.widthAnchor.constraint(equalToConstant: 150).isActive = true
+    private func row(labelView: NSTextField, control: NSView, labelWidth: CGFloat = 150, controlWidth: CGFloat = 190) -> NSStackView {
+        labelView.widthAnchor.constraint(equalToConstant: labelWidth).isActive = true
         let row = NSStackView(views: [labelView, control])
         row.orientation = .horizontal
         row.spacing = 10
         row.alignment = .centerY
-        control.widthAnchor.constraint(greaterThanOrEqualToConstant: 190).isActive = true
+        control.widthAnchor.constraint(equalToConstant: controlWidth).isActive = true
         return row
     }
 

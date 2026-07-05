@@ -13,6 +13,8 @@
     <string>__MENU_REFRESH_SECONDS__</string>
     <string>--title</string>
     <string>__MENU_BAR_TITLE__</string>
+    <string>--locale</string>
+    <string>__MENU_BAR_LOCALE__</string>
   </array>
   <key>RunAtLoad</key>
   <true/>

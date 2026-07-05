@@ -20,6 +20,7 @@ HOTSPOT_TRIGGER_MODE="${HOTSPOT_TRIGGER_MODE:-}"
 HOTSPOT_MENU_BAR="${HOTSPOT_MENU_BAR:-0}"
 MENU_BAR_REFRESH_SECONDS="${MENU_BAR_REFRESH_SECONDS:-30}"
 MENU_BAR_TITLE="${MENU_BAR_TITLE:-MHP}"
+MENU_BAR_LOCALE="${MENU_BAR_LOCALE:-auto}"
 MENU_BAR_INSTALLED=0
 HELPER_DEBOUNCE_SECONDS="${HELPER_DEBOUNCE_SECONDS:-1}"
 HELPER_MAX_RUNS="${HELPER_MAX_RUNS:-3}"
@@ -121,7 +122,7 @@ write_helper_launch_agent() {
 }
 
 write_menu_bar_launch_agent() {
-  local escaped_menu escaped_bin escaped_log_dir escaped_refresh escaped_title
+  local escaped_menu escaped_bin escaped_log_dir escaped_refresh escaped_title escaped_locale
 
   /bin/mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
 
@@ -130,6 +131,7 @@ write_menu_bar_launch_agent() {
   escaped_log_dir="$(escape_sed_replacement "$LOG_DIR")"
   escaped_refresh="$(escape_sed_replacement "$MENU_BAR_REFRESH_SECONDS")"
   escaped_title="$(escape_sed_replacement "$MENU_BAR_TITLE")"
+  escaped_locale="$(escape_sed_replacement "$MENU_BAR_LOCALE")"
 
   /usr/bin/sed \
     -e "s|__MENU_BIN__|$escaped_menu|g" \
@@ -137,6 +139,7 @@ write_menu_bar_launch_agent() {
     -e "s|__LOG_DIR__|$escaped_log_dir|g" \
     -e "s|__MENU_REFRESH_SECONDS__|$escaped_refresh|g" \
     -e "s|__MENU_BAR_TITLE__|$escaped_title|g" \
+    -e "s|__MENU_BAR_LOCALE__|$escaped_locale|g" \
     "$SOURCE_DIR/launchd/$MENU_BAR_LABEL.plist.in" >"$MENU_BAR_PLIST_PATH"
 
   printf 'Wrote menu bar LaunchAgent: %s\n' "$MENU_BAR_PLIST_PATH"

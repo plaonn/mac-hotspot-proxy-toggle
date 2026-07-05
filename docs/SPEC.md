@@ -55,9 +55,17 @@ Companion은 아래 역할만 함:
 - 주기적으로 `hotspot-proxy-toggle status`를 child process로 호출해 상태 menu를 갱신함.
 - 사용자가 menu에서 `Reconcile Now`를 선택하면 `hotspot-proxy-toggle run`을 한 번 호출함.
 - `Refresh Status`는 proxy setting을 변경하지 않고 `status`만 다시 호출함.
-- `Quit MHP`는 companion process만 종료함.
+- `Quit MHP`는 `hotspot-proxy-toggle off`를 호출해 proxy setting을 끄고, helper LaunchAgent와 menu LaunchAgent를 unload함.
 
 Companion은 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음. 상태 표시는 `status=hotspot`, `status=not-hotspot`, `status=not-wifi`, `status=no-router`, `proxy_check=...-missing` 같은 runtime command output에서 파생함.
+
+상태 menu 문구는 아래 5상태임:
+
+- `Hotspot Proxy On` / `핫스팟 프록시 켜짐`
+- `Hotspot Proxy Unavailable` / `핫스팟 프록시 사용 불가`
+- `Hotspot Proxy Idle` / `핫스팟 프록시 대기`
+- `Wi-Fi Not Ready` / `Wi-Fi 준비 안 됨`
+- `MHP Error` / `MHP 오류`
 
 Companion LaunchAgent는 opt-in임. Source installer에서 `HOTSPOT_MENU_BAR=1`을 지정한 경우에만 아래 LaunchAgent를 생성하고 load함:
 
@@ -70,6 +78,7 @@ Companion tuning key:
 ```bash
 MENU_BAR_REFRESH_SECONDS=30
 MENU_BAR_TITLE=MHP
+MENU_BAR_LOCALE=auto
 ```
 
 Companion LaunchAgent는 `KeepAlive`를 사용하지 않음. 사용자가 menu에서 `Quit MHP`를 선택하면 launchd가 즉시 재시작하지 않아야 함.
@@ -212,7 +221,7 @@ HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
 ~/Library/LaunchAgents/com.github.plaonn.hotspot-proxy-toggle.menu.plist
 ```
 
-`MENU_BAR_REFRESH_SECONDS`로 상태 refresh 간격을, `MENU_BAR_TITLE`로 menu bar title을 바꿀 수 있음.
+`MENU_BAR_REFRESH_SECONDS`로 상태 refresh 간격을, `MENU_BAR_TITLE`로 menu bar title을, `MENU_BAR_LOCALE=auto|en|ko`로 menu language를 바꿀 수 있음.
 
 helper build, helper LaunchAgent plist 생성, helper LaunchAgent load 중 하나가 실패하면 installer는 실패 단계와 확인 힌트를 출력한 뒤 아래 polling LaunchAgent를 설치함. `HOTSPOT_TRIGGER_MODE=polling`을 명시한 경우에도 polling LaunchAgent를 설치하고 helper LaunchAgent는 제거함:
 

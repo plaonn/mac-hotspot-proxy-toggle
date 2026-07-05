@@ -371,6 +371,17 @@ run_disables_all_supported_backends_when_not_hotspot() {
   [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 off:http" ]]
 }
 
+off_command_disables_all_supported_backends() {
+  local output
+
+  reset_runtime_state
+  do_off >"$TEST_TMP/off.out"
+  output="$(<"$TEST_TMP/off.out")"
+
+  assert_contains "$output" "status=off action=off" &&
+    [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 off:http" ]]
+}
+
 unsupported_proxy_type_is_rejected() {
   reset_runtime_state
   PROXY_TYPE="pac"
@@ -414,6 +425,7 @@ run_test "run records not-Wi-Fi without notification" run_records_not_wifi_witho
 run_test "run records no-router without notification" run_records_no_router_without_notification
 run_test "run uses Korean notification locale" run_uses_korean_notification_locale
 run_test "run disables all supported backends when not hotspot" run_disables_all_supported_backends_when_not_hotspot
+run_test "off command disables all supported backends" off_command_disables_all_supported_backends
 run_test "unsupported proxy type is rejected" unsupported_proxy_type_is_rejected
 run_test "unsupported notification locale is rejected" unsupported_notification_locale_is_rejected
 

@@ -25,6 +25,7 @@ Usage:
   hotspot-proxy-toggle run
   hotspot-proxy-toggle status
   hotspot-proxy-toggle evaluate
+  hotspot-proxy-toggle off
 
 Config:
   ~/.config/hotspot-proxy-toggle.conf
@@ -689,12 +690,22 @@ do_run() {
   notify_reconcile_change "on:$PROXY_TYPE:$result" "$(notification_title on)" "$(active_notification_body)"
 }
 
+do_off() {
+  PROXY_STATE_CHANGED=0
+  load_config
+  validate_config
+  set_all_supported_proxies_off
+  record_reconcile_state "off:$PROXY_TYPE:manual"
+  printf 'status=off action=off\n'
+}
+
 main() {
   local cmd="${1:-}"
   case "$cmd" in
     run) do_run ;;
     status) do_status ;;
     evaluate) do_evaluate ;;
+    off) do_off ;;
     -h|--help|help|"") usage ;;
     *)
       usage >&2

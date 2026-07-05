@@ -1,10 +1,12 @@
 import AppKit
+import Darwin
 import Foundation
 
 struct MenuConfig {
     var command = "hotspot-proxy-toggle"
     var refreshSeconds = 30.0
     var title = "MHP"
+    var locale = MenuLocale.auto
 
     static func parse(_ arguments: [String]) throws -> MenuConfig {
         var config = MenuConfig()
@@ -31,6 +33,12 @@ struct MenuConfig {
                     throw UsageError("invalid value for --title")
                 }
                 config.title = arguments[index]
+            case "--locale":
+                index += 1
+                guard index < arguments.count, let locale = MenuLocale(rawValue: arguments[index]) else {
+                    throw UsageError("invalid value for --locale")
+                }
+                config.locale = locale
             case "-h", "--help", "help":
                 printUsage()
                 exit(0)
@@ -53,33 +61,89 @@ struct UsageError: Error, CustomStringConvertible {
     }
 }
 
+enum MenuLocale: String {
+    case auto
+    case en
+    case ko
+
+    var resolved: MenuLocale {
+        switch self {
+        case .en, .ko:
+            return self
+        case .auto:
+            let defaults = UserDefaults.standard
+            let languages = defaults.array(forKey: "AppleLanguages") as? [String] ?? []
+            if languages.contains(where: { $0.lowercased().hasPrefix("ko") }) {
+                return .ko
+            }
+            if let locale = defaults.string(forKey: "AppleLocale"), locale.lowercased().hasPrefix("ko") {
+                return .ko
+            }
+            return .en
+        }
+    }
+}
+
 enum ProxySummary {
     case checking
-    case active
+    case on
     case unavailable
     case idle
-    case transient
+    case notWiFi
     case error
 
-    var statusText: String {
-        switch self {
-        case .checking: return "Status: Checking..."
-        case .active: return "Status: Active"
-        case .unavailable: return "Status: Proxy unavailable"
-        case .idle: return "Status: Idle"
-        case .transient: return "Status: Waiting for Wi-Fi"
-        case .error: return "Status: Error"
+    func title(locale: MenuLocale) -> String {
+        switch locale.resolved {
+        case .ko:
+            switch self {
+            case .checking: return "확인 중"
+            case .on: return "✅ 핫스팟 프록시 켜짐"
+            case .unavailable: return "⚠️ 핫스팟 프록시 사용 불가"
+            case .idle: return "ℹ️ 핫스팟 프록시 대기"
+            case .notWiFi: return "Wi-Fi 준비 안 됨"
+            case .error: return "MHP 오류"
+            }
+        case .auto, .en:
+            switch self {
+            case .checking: return "Checking"
+            case .on: return "✅ Hotspot Proxy On"
+            case .unavailable: return "⚠️ Hotspot Proxy Unavailable"
+            case .idle: return "ℹ️ Hotspot Proxy Idle"
+            case .notWiFi: return "Wi-Fi Not Ready"
+            case .error: return "MHP Error"
+            }
         }
     }
 
-    var tooltip: String {
-        switch self {
-        case .checking: return "Hotspot proxy status is being checked."
-        case .active: return "Hotspot proxy is active or ready."
-        case .unavailable: return "Hotspot detected, but the proxy endpoint is unavailable."
-        case .idle: return "Current Wi-Fi is not a configured hotspot."
-        case .transient: return "Wi-Fi route or router is not ready."
-        case .error: return "Could not read hotspot proxy status."
+    func statusText(locale: MenuLocale) -> String {
+        switch locale.resolved {
+        case .ko:
+            return "상태: \(title(locale: locale))"
+        case .auto, .en:
+            return "Status: \(title(locale: locale))"
+        }
+    }
+
+    func tooltip(locale: MenuLocale) -> String {
+        switch locale.resolved {
+        case .ko:
+            switch self {
+            case .checking: return "핫스팟 프록시 상태를 확인하는 중입니다."
+            case .on: return "현재 트래픽이 핫스팟 프록시를 사용합니다."
+            case .unavailable: return "핫스팟은 감지됐지만 프록시 서버가 응답하지 않습니다."
+            case .idle: return "현재 Wi-Fi는 설정한 핫스팟이 아닙니다."
+            case .notWiFi: return "Wi-Fi route 또는 router가 준비되지 않았습니다."
+            case .error: return "핫스팟 프록시 상태를 읽을 수 없습니다."
+            }
+        case .auto, .en:
+            switch self {
+            case .checking: return "Hotspot proxy status is being checked."
+            case .on: return "Traffic is using the hotspot proxy."
+            case .unavailable: return "Hotspot detected, but the proxy server is not responding."
+            case .idle: return "Current Wi-Fi is not a configured hotspot."
+            case .notWiFi: return "Wi-Fi route or router is not ready."
+            case .error: return "Could not read hotspot proxy status."
+            }
         }
     }
 }
@@ -93,16 +157,13 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     private let config: MenuConfig
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let menu = NSMenu()
-    private let statusMenuItem = NSMenuItem(title: ProxySummary.checking.statusText, action: nil, keyEquivalent: "")
-    private let lastCheckedMenuItem = NSMenuItem(title: "Last checked: Never", action: nil, keyEquivalent: "")
+    private lazy var statusMenuItem = NSMenuItem(
+        title: ProxySummary.checking.statusText(locale: config.locale),
+        action: nil,
+        keyEquivalent: ""
+    )
     private var timer: Timer?
     private var isRefreshing = false
-    private let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .medium
-        formatter.dateStyle = .none
-        return formatter
-    }()
 
     init(config: MenuConfig) {
         self.config = config
@@ -121,19 +182,17 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     private func configureStatusItem() {
         if let button = statusItem.button {
             button.title = config.title
-            button.toolTip = ProxySummary.checking.tooltip
+            button.toolTip = ProxySummary.checking.tooltip(locale: config.locale)
         }
 
         statusMenuItem.isEnabled = false
-        lastCheckedMenuItem.isEnabled = false
 
         menu.addItem(statusMenuItem)
-        menu.addItem(lastCheckedMenuItem)
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Refresh Status", action: #selector(refreshStatusFromMenu), keyEquivalent: "r"))
-        menu.addItem(NSMenuItem(title: "Reconcile Now", action: #selector(reconcileNow), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: menuText(en: "Refresh Status", ko: "상태 새로고침"), action: #selector(refreshStatusFromMenu), keyEquivalent: "r"))
+        menu.addItem(NSMenuItem(title: menuText(en: "Reconcile Now", ko: "지금 동기화"), action: #selector(reconcileNow), keyEquivalent: ""))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit MHP", action: #selector(quit), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: menuText(en: "Quit MHP", ko: "MHP 종료"), action: #selector(quit), keyEquivalent: "q"))
 
         for item in menu.items {
             item.target = self
@@ -159,7 +218,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
 
             let summary = self.summarizeStatus(result)
             DispatchQueue.main.async {
-                self.apply(summary: summary, checkedAt: Date())
+                self.apply(summary: summary)
                 self.isRefreshing = false
             }
         }
@@ -176,19 +235,27 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     }
 
     @objc private func quit() {
-        NSApp.terminate(nil)
+        setChecking()
+        runCommand(argument: "off") { [weak self] _ in
+            self?.bootoutLaunchAgent(label: "com.github.plaonn.hotspot-proxy-toggle.helper") {
+                self?.bootoutLaunchAgent(label: "com.github.plaonn.hotspot-proxy-toggle.menu") {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        NSApp.terminate(nil)
+                    }
+                }
+            }
+        }
     }
 
     private func setChecking() {
-        statusMenuItem.title = ProxySummary.checking.statusText
-        statusItem.button?.toolTip = ProxySummary.checking.tooltip
+        statusMenuItem.title = ProxySummary.checking.statusText(locale: config.locale)
+        statusItem.button?.toolTip = ProxySummary.checking.tooltip(locale: config.locale)
     }
 
-    private func apply(summary: ProxySummary, checkedAt: Date) {
-        statusMenuItem.title = summary.statusText
-        lastCheckedMenuItem.title = "Last checked: \(timeFormatter.string(from: checkedAt))"
+    private func apply(summary: ProxySummary) {
+        statusMenuItem.title = summary.statusText(locale: config.locale)
         statusItem.button?.title = config.title
-        statusItem.button?.toolTip = summary.tooltip
+        statusItem.button?.toolTip = summary.tooltip(locale: config.locale)
     }
 
     private func summarizeStatus(_ result: CommandResult) -> ProxySummary {
@@ -205,7 +272,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
             if lines.contains(where: { $0.contains("proxy_check=") && $0.contains("-missing") }) {
                 return .unavailable
             }
-            return .active
+            return .on
         }
 
         if firstLine.hasPrefix("status=not-hotspot") {
@@ -213,7 +280,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         }
 
         if firstLine.hasPrefix("status=not-wifi") || firstLine.hasPrefix("status=no-router") {
-            return .transient
+            return .notWiFi
         }
 
         return .error
@@ -248,6 +315,34 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
             completion(CommandResult(status: process.terminationStatus, output: text))
         }
     }
+
+    private func bootoutLaunchAgent(label: String, completion: @escaping () -> Void) {
+        DispatchQueue.global(qos: .utility).async {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+            process.arguments = ["bootout", "gui/\(getuid())/\(label)"]
+            process.standardOutput = Pipe()
+            process.standardError = Pipe()
+
+            do {
+                try process.run()
+                process.waitUntilExit()
+            } catch {
+                // LaunchAgent may already be unloaded. Quit should still proceed.
+            }
+
+            completion()
+        }
+    }
+
+    private func menuText(en: String, ko: String) -> String {
+        switch config.locale.resolved {
+        case .ko:
+            return ko
+        case .auto, .en:
+            return en
+        }
+    }
 }
 
 func printUsage() {
@@ -260,6 +355,8 @@ func printUsage() {
           --command PATH     Command to invoke with 'status' or 'run'.
           --refresh SECS    Status refresh interval. Default: 30.
           --title TEXT      Menu bar title. Default: MHP.
+          --locale auto|en|ko
+                           Menu language. Default: auto.
           -h, --help        Show this help.
         """
     )

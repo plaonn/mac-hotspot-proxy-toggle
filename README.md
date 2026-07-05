@@ -112,12 +112,20 @@ event helper 설치에는 macOS Swift compiler가 필요합니다. Xcode Command
 HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
 ```
 
-Menu bar companion은 기본적으로 30초마다 `hotspot-proxy-toggle status`로 상태를 갱신합니다. 메뉴에서 `Refresh Status`를 선택하면 상태만 다시 확인하고, `Reconcile Now`를 선택하면 `hotspot-proxy-toggle run`을 한 번 실행합니다. Companion은 프록시 판단이나 설정 변경 로직을 직접 구현하지 않습니다.
+Menu bar companion은 기본적으로 30초마다 `hotspot-proxy-toggle status`로 상태를 갱신합니다. 메뉴에서 `Refresh Status`를 선택하면 상태만 다시 확인하고, `Reconcile Now`를 선택하면 `hotspot-proxy-toggle run`을 한 번 실행합니다. `Quit MHP`는 `hotspot-proxy-toggle off`로 proxy setting을 끄고 helper/menu LaunchAgent를 내립니다. Companion은 프록시 판단이나 설정 변경 로직을 직접 구현하지 않습니다.
+
+Menu status는 notification 문맥과 맞춘 5상태를 사용합니다.
+
+- `Hotspot Proxy On`: 핫스팟 프록시를 사용 중입니다.
+- `Hotspot Proxy Unavailable`: 핫스팟은 감지됐지만 프록시 서버가 응답하지 않습니다.
+- `Hotspot Proxy Idle`: 현재 Wi-Fi가 설정한 핫스팟이 아니어서 프록시를 사용하지 않습니다.
+- `Wi-Fi Not Ready`: Wi-Fi route 또는 router가 아직 준비되지 않았습니다.
+- `MHP Error`: 상태를 읽거나 해석하지 못했습니다.
 
 표시 title과 refresh 간격은 다음처럼 바꿀 수 있습니다.
 
 ```bash
-HOTSPOT_MENU_BAR=1 MENU_BAR_TITLE=MHP MENU_BAR_REFRESH_SECONDS=60 PROXY_PORT=1080 ./install.sh
+HOTSPOT_MENU_BAR=1 MENU_BAR_TITLE=MHP MENU_BAR_REFRESH_SECONDS=60 MENU_BAR_LOCALE=ko PROXY_PORT=1080 ./install.sh
 ```
 
 Menu bar companion이 켜지면 아래 파일이 추가됩니다.

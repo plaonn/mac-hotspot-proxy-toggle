@@ -10,6 +10,7 @@ TAP_DIR="${HOMEBREW_TAP_DIR:-$ROOT_DIR/../homebrew-tap}"
 FORMULA_REL_PATH="Formula/$FORMULA_NAME.rb"
 FORMULA_PATH="$TAP_DIR/$FORMULA_REL_PATH"
 RUN_HOMEBREW_CHECKS="${RUN_HOMEBREW_CHECKS:-1}"
+UPDATE_HOMEBREW_TAP="${UPDATE_HOMEBREW_TAP:-1}"
 
 usage() {
   cat <<'EOF'
@@ -19,6 +20,8 @@ Usage:
 Environment:
   HOMEBREW_TAP_DIR       Path to the plaonn/homebrew-tap checkout.
                          Defaults to ../homebrew-tap relative to this repo.
+  UPDATE_HOMEBREW_TAP    Set to 0 to only validate, push main, and push the tag.
+                         Default: 1.
   RUN_HOMEBREW_CHECKS    Set to 0 to skip brew audit/install/test after pushing
                          the tap update. Default: 1.
 EOF
@@ -169,23 +172,33 @@ main() {
   [[ "$VERSION" =~ ^v[0-9]+(\.[0-9]+){1,2}([._-][0-9A-Za-z.-]+)?$ ]] ||
     die "version must look like v1.2.3: $VERSION"
 
-  [[ -f "$FORMULA_PATH" ]] || die "formula not found: $FORMULA_PATH"
+  if [[ "$UPDATE_HOMEBREW_TAP" == "1" ]]; then
+    [[ -f "$FORMULA_PATH" ]] || die "formula not found: $FORMULA_PATH"
+  fi
 
-  require_command curl
   require_command git
-  require_command ruby
-  require_command shasum
-  require_command brew
+  if [[ "$UPDATE_HOMEBREW_TAP" == "1" ]]; then
+    require_command curl
+    require_command ruby
+    require_command shasum
+    require_command brew
+  fi
 
   require_clean_worktree "$ROOT_DIR"
-  require_clean_worktree "$TAP_DIR"
+  if [[ "$UPDATE_HOMEBREW_TAP" == "1" ]]; then
+    require_clean_worktree "$TAP_DIR"
+  fi
 
   cd "$ROOT_DIR"
   push_source_release
-  push_tap_update
-  run_homebrew_checks
+  if [[ "$UPDATE_HOMEBREW_TAP" == "1" ]]; then
+    push_tap_update
+    run_homebrew_checks
+  else
+    printf 'Skipped Homebrew tap update because UPDATE_HOMEBREW_TAP=%s\n' "$UPDATE_HOMEBREW_TAP"
+  fi
 
-  printf 'Released %s and updated %s/%s\n' "$VERSION" "$TAP_NAME" "$FORMULA_NAME"
+  printf 'Released %s\n' "$VERSION"
 }
 
 main "$@"

@@ -1,0 +1,114 @@
+name: Update Homebrew tap
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to publish, for example v1.4.0"
+        required: true
+        type: string
+      run_homebrew_checks:
+        description: "Run brew audit, install, and test"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  update-homebrew-tap:
+    runs-on: macos-latest
+    env:
+      FORMULA_NAME: hotspot-proxy-toggle
+      TAP_REPOSITORY: plaonn/homebrew-tap
+      VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+      RUN_HOMEBREW_CHECKS: ${{ github.event_name != 'workflow_dispatch' || inputs.run_homebrew_checks }}
+
+    steps:
+      - name: Validate version
+        run: |
+          if [[ ! "$VERSION" =~ ^v[0-9]+(\.[0-9]+){1,2}([._-][0-9A-Za-z.-]+)?$ ]]; then
+            printf 'invalid version: %s\n' "$VERSION" >&2
+            exit 64
+          fi
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.VERSION }}
+
+      - name: Validate source
+        run: ./scripts/validate.sh
+
+      - name: Validate tap token
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [[ -z "$HOMEBREW_TAP_TOKEN" ]]; then
+            printf 'repository secret HOMEBREW_TAP_TOKEN is required to update %s\n' "$TAP_REPOSITORY" >&2
+            exit 78
+          fi
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TAP_REPOSITORY }}
+          path: homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Update Formula
+        run: |
+          set -euo pipefail
+
+          formula_path="homebrew-tap/Formula/${FORMULA_NAME}.rb"
+          url="https://github.com/plaonn/mac-hotspot-proxy-toggle/archive/refs/tags/${VERSION}.tar.gz"
+          tmp="$(mktemp)"
+          curl -L --fail --silent --show-error "$url" -o "$tmp"
+          sha256="$(shasum -a 256 "$tmp" | awk '{ print $1 }')"
+          rm -f "$tmp"
+
+          ruby - "$formula_path" "$url" "$sha256" <<'RUBY'
+          formula_path, url, sha256 = ARGV
+          text = File.read(formula_path)
+
+          updated = text.sub(%r{url "https://github\.com/plaonn/mac-hotspot-proxy-toggle/archive/refs/tags/[^"]+\.tar\.gz"}, %(url "#{url}"))
+          abort "formula url not found" if updated == text
+
+          updated_sha = updated.sub(/sha256 "[0-9a-f]{64}"/, %(sha256 "#{sha256}"))
+          abort "formula sha256 not found" if updated_sha == updated
+
+          File.write(formula_path, updated_sha)
+          RUBY
+
+      - name: Style Formula
+        run: brew style "homebrew-tap/Formula/${FORMULA_NAME}.rb"
+
+      - name: Commit and push tap update
+        run: |
+          set -euo pipefail
+
+          cd homebrew-tap
+          if git diff --quiet -- "Formula/${FORMULA_NAME}.rb"; then
+            printf 'Formula already points at %s\n' "$VERSION"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "Formula/${FORMULA_NAME}.rb"
+          git commit -m "Update ${FORMULA_NAME} to ${VERSION#v}"
+          git push origin main
+
+      - name: Homebrew checks
+        if: env.RUN_HOMEBREW_CHECKS == 'true'
+        run: |
+          set -euo pipefail
+
+          brew audit --formula "homebrew-tap/Formula/${FORMULA_NAME}.rb"
+          brew install --build-from-source "homebrew-tap/Formula/${FORMULA_NAME}.rb"
+          brew test "homebrew-tap/Formula/${FORMULA_NAME}.rb"

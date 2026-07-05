@@ -35,7 +35,7 @@ ${EDITOR:-vi} ~/.config/hotspot-proxy-toggle.conf
 event helper를 LaunchAgent로 실행하려면 다음 명령을 사용합니다.
 
 ```bash
-brew services start hotspot-proxy-toggle
+brew services start plaonn/tap/hotspot-proxy-toggle
 ```
 
 즉시 한 번 reconcile하려면 다음 명령을 실행합니다.

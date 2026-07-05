@@ -15,7 +15,7 @@ macOS 프록시 설정은 Wi-Fi SSID별이 아니라 `Wi-Fi` 같은 network serv
 MHP는 현재 네트워크 상태를 한 번 확인하고, 아래 조건이 맞을 때만 macOS 프록시를 켭니다.
 
 1. 기본 route가 Wi-Fi입니다.
-2. 현재 Wi-Fi가 설정한 휴대폰 핫스팟처럼 보입니다.
+2. 현재 Wi-Fi SSID가 설정한 `HOTSPOT_SSID`와 정확히 일치합니다.
 3. 현재 핫스팟 라우터 IP의 `PROXY_PORT`에서 proxy endpoint가 응답합니다.
 
 조건이 맞지 않으면 프록시를 끕니다. 현재 backend는 `socks5`와 `http`를 지원합니다.
@@ -43,13 +43,15 @@ hotspot-proxy-toggle run
 ```bash
 git clone https://github.com/plaonn/mac-hotspot-proxy-toggle.git
 cd mac-hotspot-proxy-toggle
-PROXY_PORT=1080 ./install.sh
+PROXY_PORT=1080 HOTSPOT_SSID='My Phone Hotspot' ./install.sh
 ```
 
-메뉴바 아이콘도 함께 설치하려면:
+Source install은 `~/Applications/MHP.app`도 설치합니다. `MHP.app`을 실행한 뒤 메뉴바에서 `Settings...`를 열면 `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, `Start Automatically`를 GUI로 설정할 수 있습니다.
+
+메뉴바 아이콘을 로그인 시 자동으로 띄우려면:
 
 ```bash
-HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
+HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 HOTSPOT_SSID='My Phone Hotspot' ./install.sh
 ```
 
 자세한 설치 옵션은 [docs/INSTALL.md](docs/INSTALL.md)에 있습니다.
@@ -90,9 +92,7 @@ Menu bar item은 기본적으로 아이콘만 표시합니다. macOS template ic
 | 외곽선 휴대폰 | 현재 Wi-Fi가 설정한 핫스팟이 아니거나 대기 중입니다. |
 | 대각선이 있는 채워진 휴대폰 | 핫스팟은 감지됐지만 프록시를 사용할 수 없습니다. |
 
-Menu bar, `MHP.app`, notification 동작은 [docs/UI.md](docs/UI.md)에 있습니다.
-
-`MHP.app`의 menu에서 `Settings...`를 열면 `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, `Start Automatically`를 GUI로 설정할 수 있습니다.
+Menu bar, `MHP.app`, notification, Settings 동작은 [docs/UI.md](docs/UI.md)에 있습니다.
 
 ## 확인
 

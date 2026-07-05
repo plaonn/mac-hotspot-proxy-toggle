@@ -6,7 +6,7 @@
   <img src="docs/assets/mhp-app-icon.svg" width="96" alt="MHP app icon">
 </p>
 
-A small macOS utility that turns system proxy settings on only when the current Wi-Fi looks like a configured phone hotspot and the proxy endpoint is available.
+A small macOS utility that turns system proxy settings on only when the current Wi-Fi exactly matches a configured phone hotspot SSID and the proxy endpoint is available.
 
 ## Why
 
@@ -15,7 +15,7 @@ macOS proxy settings are scoped to a network service such as `Wi-Fi`, not to eac
 MHP reconciles the current state:
 
 1. The default route is Wi-Fi.
-2. The current Wi-Fi looks like a configured phone hotspot.
+2. The current Wi-Fi SSID exactly matches the configured `HOTSPOT_SSID`.
 3. The proxy endpoint responds on `router:PROXY_PORT`.
 
 If any condition does not match, MHP disables the supported proxy backend. Current backends are `socks5` and `http`.
@@ -43,13 +43,15 @@ hotspot-proxy-toggle run
 ```bash
 git clone https://github.com/plaonn/mac-hotspot-proxy-toggle.git
 cd mac-hotspot-proxy-toggle
-PROXY_PORT=1080 ./install.sh
+PROXY_PORT=1080 HOTSPOT_SSID='My Phone Hotspot' ./install.sh
 ```
 
-Install the menu bar icon too:
+Source install also installs `~/Applications/MHP.app`. Launch `MHP.app`, then open `Settings...` from the menu bar to configure `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, and `Start Automatically` in the GUI.
+
+Start the menu bar icon automatically at login:
 
 ```bash
-HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
+HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 HOTSPOT_SSID='My Phone Hotspot' ./install.sh
 ```
 
 See [docs/INSTALL.md](docs/INSTALL.md) for detailed install options.
@@ -90,9 +92,7 @@ The menu bar item is icon-only by default. It follows macOS template icon behavi
 | Outline phone | Non-hotspot or idle |
 | Filled phone with slash | Hotspot detected, but proxy is unavailable |
 
-See [docs/UI.md](docs/UI.md) for menu bar, `MHP.app`, and notification behavior.
-
-From the `MHP.app` menu, open `Settings...` to configure `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, and `Start Automatically` in the GUI.
+See [docs/UI.md](docs/UI.md) for menu bar, `MHP.app`, notification, and Settings behavior.
 
 ## Check
 

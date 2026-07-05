@@ -52,12 +52,42 @@ helper는 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decis
 Companion은 아래 역할만 함:
 
 - macOS menu bar status area에 기본 title `MHP`를 표시함.
-- 주기적으로 `hotspot-proxy-toggle status`를 child process로 호출해 상태 menu를 갱신함.
+- `hotspot-proxy-toggle run`/`off`가 쓰는 UI state JSON을 watch해 상태 menu를 갱신함.
+- UI state JSON이 아직 없거나 읽을 수 없으면 `hotspot-proxy-toggle status`를 child process로 호출해 상태 menu를 갱신함.
 - 사용자가 menu에서 `Reconcile Now`를 선택하면 `hotspot-proxy-toggle run`을 한 번 호출함.
 - `Refresh Status`는 proxy setting을 변경하지 않고 `status`만 다시 호출함.
 - `Quit MHP`는 `hotspot-proxy-toggle off`를 호출해 proxy setting을 끄고, helper LaunchAgent와 menu LaunchAgent를 unload함.
 
-Companion은 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음. 상태 표시는 `status=hotspot`, `status=not-hotspot`, `status=not-wifi`, `status=no-router`, `proxy_check=...-missing` 같은 runtime command output에서 파생함.
+Companion은 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음. Primary 상태 표시는 UI state JSON에서 파생함. Fallback 상태 표시는 `status=hotspot`, `status=not-hotspot`, `status=not-wifi`, `status=no-router`, `proxy_check=...-missing` 같은 runtime command output에서 파생함.
+
+UI state JSON 기본 경로:
+
+```text
+~/Library/Application Support/hotspot-proxy-toggle/status.json
+```
+
+UI state JSON은 menu 표시용 machine-readable state임. Notification 중복 방지용 `HOTSPOT_PROXY_STATE`와 역할이 다르며, SSID, router IP, local path를 포함하지 않음.
+
+현재 key:
+
+```json
+{
+  "version": 1,
+  "kind": "on",
+  "proxy_type": "socks5",
+  "detail": "",
+  "updated_at": "2026-07-05T00:00:00Z"
+}
+```
+
+`kind` 값:
+
+- `on`
+- `unavailable`
+- `idle`
+- `not_wifi`
+- `off`
+- `error`
 
 상태 menu 문구는 아래 5상태임:
 
@@ -79,9 +109,10 @@ Companion tuning key:
 MENU_BAR_REFRESH_SECONDS=30
 MENU_BAR_TITLE=MHP
 MENU_BAR_LOCALE=auto
+HOTSPOT_PROXY_UI_STATE=~/Library/Application Support/hotspot-proxy-toggle/status.json
 ```
 
-Companion LaunchAgent는 `KeepAlive`를 사용하지 않음. 사용자가 menu에서 `Quit MHP`를 선택하면 launchd가 즉시 재시작하지 않아야 함.
+Companion LaunchAgent는 `KeepAlive`를 사용하지 않음. 사용자가 menu에서 `Quit MHP`를 선택하면 launchd가 즉시 재시작하지 않아야 함. `MENU_BAR_REFRESH_SECONDS`는 UI state file watch 누락이나 sleep/wake 이후 stale UI를 보정하는 fallback refresh 간격임.
 
 ## MHP.app
 

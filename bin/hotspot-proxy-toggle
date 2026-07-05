@@ -4,6 +4,7 @@ set -euo pipefail
 CONFIG_PATH="${HOTSPOT_PROXY_CONFIG:-$HOME/.config/hotspot-proxy-toggle.conf}"
 LOG_PATH="${HOTSPOT_PROXY_LOG:-$HOME/Library/Logs/hotspot-proxy-toggle.log}"
 STATE_PATH="${HOTSPOT_PROXY_STATE:-$HOME/Library/Application Support/hotspot-proxy-toggle/state}"
+UI_STATE_PATH="${HOTSPOT_PROXY_UI_STATE:-$HOME/Library/Application Support/hotspot-proxy-toggle/status.json}"
 
 NETWORK_SERVICE="${NETWORK_SERVICE:-Wi-Fi}"
 WIFI_DEVICE="${WIFI_DEVICE:-}"
@@ -46,6 +47,7 @@ Optional:
   NOTIFY_ON_CHANGE=1
   NOTIFICATION_LOCALE=auto
   HOTSPOT_PROXY_STATE="$HOME/Library/Application Support/hotspot-proxy-toggle/state"
+  HOTSPOT_PROXY_UI_STATE="$HOME/Library/Application Support/hotspot-proxy-toggle/status.json"
 EOF
 }
 
@@ -73,6 +75,7 @@ load_config() {
   NOTIFY_ON_CHANGE="${NOTIFY_ON_CHANGE:-0}"
   NOTIFICATION_LOCALE="${NOTIFICATION_LOCALE:-auto}"
   STATE_PATH="${HOTSPOT_PROXY_STATE:-${STATE_PATH:-$HOME/Library/Application Support/hotspot-proxy-toggle/state}}"
+  UI_STATE_PATH="${HOTSPOT_PROXY_UI_STATE:-${UI_STATE_PATH:-$HOME/Library/Application Support/hotspot-proxy-toggle/status.json}}"
 }
 
 validate_config() {
@@ -427,6 +430,36 @@ record_reconcile_state() {
   write_notification_state "$state_key"
 }
 
+write_ui_state() {
+  local kind="$1"
+  local detail="${2:-}"
+  local tmp
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    return 0
+  fi
+
+  /bin/mkdir -p "$(/usr/bin/dirname "$UI_STATE_PATH")" || {
+    log "ui state write skipped: failed to create state directory"
+    return 0
+  }
+
+  tmp="$UI_STATE_PATH.$$"
+  if {
+    printf '{\n'
+    printf '  "version": 1,\n'
+    printf '  "kind": "%s",\n' "$kind"
+    printf '  "proxy_type": "%s",\n' "$PROXY_TYPE"
+    printf '  "detail": "%s",\n' "$detail"
+    printf '  "updated_at": "%s"\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    printf '}\n'
+  } >"$tmp" && /bin/mv "$tmp" "$UI_STATE_PATH"; then
+    return 0
+  fi
+
+    log "ui state write failed: $UI_STATE_PATH"
+}
+
 socks5_proxy_state_matches() {
   local router="$1"
   local current
@@ -668,9 +701,19 @@ do_run() {
     set_all_supported_proxies_off
     case "$result" in
       status=not-hotspot*)
+        write_ui_state idle
         notify_reconcile_change "off:$PROXY_TYPE:$result" "$(notification_title idle)" "$(inactive_notification_body "$result")"
         ;;
+      status=not-wifi*)
+        write_ui_state not_wifi
+        record_reconcile_state "off:$PROXY_TYPE:$result"
+        ;;
+      status=no-router*)
+        write_ui_state not_wifi no_router
+        record_reconcile_state "off:$PROXY_TYPE:$result"
+        ;;
       *)
+        write_ui_state error
         record_reconcile_state "off:$PROXY_TYPE:$result"
         ;;
     esac
@@ -682,11 +725,13 @@ do_run() {
     printf 'status=proxy-unavailable proxy_type=%s router=%s port=%s action=off\n' "$PROXY_TYPE" "$router" "$PROXY_PORT"
     log "$(proxy_display_name) proxy unavailable at $router:$PROXY_PORT"
     set_all_supported_proxies_off
+    write_ui_state unavailable
     notify_reconcile_change "off:$PROXY_TYPE:$result:proxy-unavailable" "$(notification_title unavailable)" "$(unavailable_notification_body)"
     return 0
   fi
 
   set_proxy_on "$router"
+  write_ui_state on
   notify_reconcile_change "on:$PROXY_TYPE:$result" "$(notification_title on)" "$(active_notification_body)"
 }
 
@@ -695,6 +740,7 @@ do_off() {
   load_config
   validate_config
   set_all_supported_proxies_off
+  write_ui_state off manual
   record_reconcile_state "off:$PROXY_TYPE:manual"
   printf 'status=off action=off\n'
 }

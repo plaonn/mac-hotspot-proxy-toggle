@@ -4,6 +4,7 @@ import Foundation
 
 struct MenuConfig {
     var command = defaultCommandPath()
+    var statePath = defaultStatePath()
     var refreshSeconds = 30.0
     var title = "MHP"
     var locale = MenuLocale.auto
@@ -27,6 +28,12 @@ struct MenuConfig {
                     throw UsageError("invalid value for --refresh")
                 }
                 config.refreshSeconds = value
+            case "--state":
+                index += 1
+                guard index < arguments.count else {
+                    throw UsageError("missing value for --state")
+                }
+                config.statePath = arguments[index]
             case "--title":
                 index += 1
                 guard index < arguments.count, !arguments[index].isEmpty else {
@@ -89,6 +96,7 @@ enum ProxySummary {
     case on
     case unavailable
     case idle
+    case off
     case notWiFi
     case error
 
@@ -100,6 +108,7 @@ enum ProxySummary {
             case .on: return "✅ 핫스팟 프록시 켜짐"
             case .unavailable: return "⚠️ 핫스팟 프록시 사용 불가"
             case .idle: return "ℹ️ 핫스팟 프록시 대기"
+            case .off: return "MHP 꺼짐"
             case .notWiFi: return "Wi-Fi 준비 안 됨"
             case .error: return "MHP 오류"
             }
@@ -109,6 +118,7 @@ enum ProxySummary {
             case .on: return "✅ Hotspot Proxy On"
             case .unavailable: return "⚠️ Hotspot Proxy Unavailable"
             case .idle: return "ℹ️ Hotspot Proxy Idle"
+            case .off: return "MHP Off"
             case .notWiFi: return "Wi-Fi Not Ready"
             case .error: return "MHP Error"
             }
@@ -132,6 +142,7 @@ enum ProxySummary {
             case .on: return "현재 트래픽이 핫스팟 프록시를 사용합니다."
             case .unavailable: return "핫스팟은 감지됐지만 프록시 서버가 응답하지 않습니다."
             case .idle: return "현재 Wi-Fi는 설정한 핫스팟이 아닙니다."
+            case .off: return "MHP가 꺼져 있습니다."
             case .notWiFi: return "Wi-Fi route 또는 router가 준비되지 않았습니다."
             case .error: return "핫스팟 프록시 상태를 읽을 수 없습니다."
             }
@@ -141,6 +152,7 @@ enum ProxySummary {
             case .on: return "Traffic is using the hotspot proxy."
             case .unavailable: return "Hotspot detected, but the proxy server is not responding."
             case .idle: return "Current Wi-Fi is not a configured hotspot."
+            case .off: return "MHP is off."
             case .notWiFi: return "Wi-Fi route or router is not ready."
             case .error: return "Could not read hotspot proxy status."
             }
@@ -151,6 +163,22 @@ enum ProxySummary {
 struct CommandResult {
     let status: Int32
     let output: String
+}
+
+struct UIState: Decodable {
+    let version: Int
+    let kind: String
+    let proxyType: String
+    let detail: String?
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case kind
+        case proxyType = "proxy_type"
+        case detail
+        case updatedAt = "updated_at"
+    }
 }
 
 final class MenuBarApp: NSObject, NSApplicationDelegate {
@@ -164,6 +192,8 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     )
     private var timer: Timer?
     private var isRefreshing = false
+    private var stateWatcher: DispatchSourceFileSystemObject?
+    private var stateDirectoryWatcher: DispatchSourceFileSystemObject?
 
     init(config: MenuConfig) {
         self.config = config
@@ -174,9 +204,10 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         configureStatusItem()
         ensureAutomationAgentLoaded()
-        refreshStatus()
+        readStateOrRefresh()
+        startStateWatchers()
         timer = Timer.scheduledTimer(withTimeInterval: config.refreshSeconds, repeats: true) { [weak self] _ in
-            self?.refreshStatus()
+            self?.readStateOrRefresh()
         }
     }
 
@@ -259,6 +290,38 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         statusItem.button?.toolTip = summary.tooltip(locale: config.locale)
     }
 
+    private func readStateOrRefresh() {
+        if applyStateFile() {
+            return
+        }
+        refreshStatus()
+    }
+
+    @discardableResult
+    private func applyStateFile() -> Bool {
+        let url = URL(fileURLWithPath: config.statePath)
+        guard let data = try? Data(contentsOf: url),
+              let state = try? JSONDecoder().decode(UIState.self, from: data) else {
+            return false
+        }
+
+        DispatchQueue.main.async {
+            self.apply(summary: self.summarizeState(state))
+        }
+        return true
+    }
+
+    private func summarizeState(_ state: UIState) -> ProxySummary {
+        switch state.kind {
+        case "on": return .on
+        case "unavailable": return .unavailable
+        case "idle": return .idle
+        case "off": return .off
+        case "not_wifi": return .notWiFi
+        default: return .error
+        }
+    }
+
     private func summarizeStatus(_ result: CommandResult) -> ProxySummary {
         guard result.status == 0 || result.status == 1 || result.status == 2 else {
             return .error
@@ -324,6 +387,68 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func startStateWatchers() {
+        watchStateDirectory()
+        watchStateFile()
+    }
+
+    private func watchStateDirectory() {
+        let directory = (config.statePath as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(
+            atPath: directory,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        let fd = open(directory, O_EVTONLY)
+        guard fd >= 0 else {
+            return
+        }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: [.write, .rename, .delete],
+            queue: DispatchQueue.global(qos: .utility)
+        )
+        source.setEventHandler { [weak self] in
+            self?.watchStateFile()
+            _ = self?.applyStateFile()
+        }
+        source.setCancelHandler {
+            close(fd)
+        }
+        stateDirectoryWatcher = source
+        source.resume()
+    }
+
+    private func watchStateFile() {
+        stateWatcher?.cancel()
+        stateWatcher = nil
+
+        guard FileManager.default.fileExists(atPath: config.statePath) else {
+            return
+        }
+
+        let fd = open(config.statePath, O_EVTONLY)
+        guard fd >= 0 else {
+            return
+        }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: [.write, .rename, .delete],
+            queue: DispatchQueue.global(qos: .utility)
+        )
+        source.setEventHandler { [weak self] in
+            self?.watchStateFile()
+            _ = self?.applyStateFile()
+        }
+        source.setCancelHandler {
+            close(fd)
+        }
+        stateWatcher = source
+        source.resume()
+    }
+
     private func ensureAutomationAgentLoaded() {
         DispatchQueue.global(qos: .utility).async {
             let candidates = [
@@ -387,6 +512,10 @@ func defaultCommandPath() -> String {
     return "hotspot-proxy-toggle"
 }
 
+func defaultStatePath() -> String {
+    "\(homeDirectory())/Library/Application Support/hotspot-proxy-toggle/status.json"
+}
+
 func homeDirectory() -> String {
     FileManager.default.homeDirectoryForCurrentUser.path
 }
@@ -400,6 +529,7 @@ func printUsage() {
         Options:
           --command PATH     Command to invoke with 'status' or 'run'.
           --refresh SECS    Status refresh interval. Default: 30.
+          --state PATH      UI state JSON path.
           --title TEXT      Menu bar title. Default: MHP.
           --locale auto|en|ko
                            Menu language. Default: auto.

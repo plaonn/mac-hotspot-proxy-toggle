@@ -69,7 +69,9 @@ reset_runtime_state() {
   NOTIFY_ON_CHANGE="0"
   NOTIFICATION_LOCALE="en"
   STATE_PATH="$TEST_TMP/notify-state"
+  UI_STATE_PATH="$TEST_TMP/status.json"
   rm -f "$STATE_PATH"
+  rm -f "$UI_STATE_PATH"
   PROXY_STATE_CHANGED=0
   MOCK_DEFAULT_INTERFACE="en0"
   MOCK_IPCONFIG_SUMMARY=""
@@ -220,7 +222,10 @@ run_disables_proxy_when_endpoint_unavailable() {
 
   assert_contains "$output" "status=hotspot" &&
     assert_contains "$output" "status=proxy-unavailable proxy_type=socks5 router=172.20.10.42 port=1080 action=off" &&
-    [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 off:http" ]]
+    [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 off:http" ]] &&
+    assert_contains "$(<"$UI_STATE_PATH")" '"kind": "unavailable"' &&
+    ! assert_contains "$(<"$UI_STATE_PATH")" "172.20.10.42" &&
+    ! assert_contains "$(<"$UI_STATE_PATH")" "My Phone"
 }
 
 run_enables_proxy_for_available_endpoint() {
@@ -231,7 +236,8 @@ run_enables_proxy_for_available_endpoint() {
 
   do_run >/dev/null
 
-  [[ "${PROXY_ACTIONS[*]-}" == "off:http on:socks5:172.20.10.99:1080" ]]
+  [[ "${PROXY_ACTIONS[*]-}" == "off:http on:socks5:172.20.10.99:1080" ]] &&
+    assert_contains "$(<"$UI_STATE_PATH")" '"kind": "on"'
 }
 
 run_enables_http_web_proxy_backend() {
@@ -368,7 +374,8 @@ run_disables_all_supported_backends_when_not_hotspot() {
 
   do_run >/dev/null
 
-  [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 off:http" ]]
+  [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 off:http" ]] &&
+    assert_contains "$(<"$UI_STATE_PATH")" '"kind": "idle"'
 }
 
 off_command_disables_all_supported_backends() {
@@ -379,7 +386,8 @@ off_command_disables_all_supported_backends() {
   output="$(<"$TEST_TMP/off.out")"
 
   assert_contains "$output" "status=off action=off" &&
-    [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 off:http" ]]
+    [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 off:http" ]] &&
+    assert_contains "$(<"$UI_STATE_PATH")" '"kind": "off"'
 }
 
 unsupported_proxy_type_is_rejected() {

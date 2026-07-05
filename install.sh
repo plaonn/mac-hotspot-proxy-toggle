@@ -15,6 +15,7 @@ PLIST_PATH="$HOME/Library/LaunchAgents/$LABEL.plist"
 HELPER_PLIST_PATH="$HOME/Library/LaunchAgents/$HELPER_LABEL.plist"
 MENU_BAR_PLIST_PATH="$HOME/Library/LaunchAgents/$MENU_BAR_LABEL.plist"
 LOG_DIR="$HOME/Library/Logs"
+UI_STATE_PATH="${HOTSPOT_PROXY_UI_STATE:-$HOME/Library/Application Support/hotspot-proxy-toggle/status.json}"
 CHECK_INTERVAL_SECONDS="${CHECK_INTERVAL_SECONDS:-60}"
 HOTSPOT_TRIGGER_MODE="${HOTSPOT_TRIGGER_MODE:-}"
 HOTSPOT_MENU_BAR="${HOTSPOT_MENU_BAR:-0}"
@@ -126,13 +127,14 @@ write_helper_launch_agent() {
 }
 
 write_menu_bar_launch_agent() {
-  local escaped_menu escaped_bin escaped_log_dir escaped_refresh escaped_title escaped_locale
+  local escaped_menu escaped_bin escaped_log_dir escaped_state escaped_refresh escaped_title escaped_locale
 
   /bin/mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
 
   escaped_menu="$(escape_sed_replacement "$MENU_BAR_BIN")"
   escaped_bin="$(escape_sed_replacement "$INSTALL_BIN")"
   escaped_log_dir="$(escape_sed_replacement "$LOG_DIR")"
+  escaped_state="$(escape_sed_replacement "$UI_STATE_PATH")"
   escaped_refresh="$(escape_sed_replacement "$MENU_BAR_REFRESH_SECONDS")"
   escaped_title="$(escape_sed_replacement "$MENU_BAR_TITLE")"
   escaped_locale="$(escape_sed_replacement "$MENU_BAR_LOCALE")"
@@ -141,6 +143,7 @@ write_menu_bar_launch_agent() {
     -e "s|__MENU_BIN__|$escaped_menu|g" \
     -e "s|__INSTALL_BIN__|$escaped_bin|g" \
     -e "s|__LOG_DIR__|$escaped_log_dir|g" \
+    -e "s|__UI_STATE_PATH__|$escaped_state|g" \
     -e "s|__MENU_REFRESH_SECONDS__|$escaped_refresh|g" \
     -e "s|__MENU_BAR_TITLE__|$escaped_title|g" \
     -e "s|__MENU_BAR_LOCALE__|$escaped_locale|g" \

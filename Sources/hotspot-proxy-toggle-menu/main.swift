@@ -424,7 +424,8 @@ final class DotenvConfig {
         values[key] = value
     }
 
-    func write(path: String) throws {
+    @discardableResult
+    func write(path: String) throws -> Bool {
         let writeKeys = [
             "HOTSPOT_SSID",
             "PROXY_TYPE",
@@ -460,7 +461,13 @@ final class DotenvConfig {
             withIntermediateDirectories: true,
             attributes: nil
         )
-        try (output.joined(separator: "\n") + "\n").write(toFile: path, atomically: true, encoding: .utf8)
+        let content = output.joined(separator: "\n") + "\n"
+        if let existing = try? String(contentsOfFile: path, encoding: .utf8),
+           existing == content {
+            return false
+        }
+        try content.write(toFile: path, atomically: true, encoding: .utf8)
+        return true
     }
 
     private static func parse(line: String) -> (String, String)? {
@@ -872,6 +879,11 @@ final class SettingsWindowController: NSWindowController {
         DispatchQueue.global(qos: .utility).async { [weak self] in
             do {
                 let configFile = DotenvConfig.load(path: configPath)
+                let previousSettings = configFile.appSettings()
+                let previousStartAutomatically = AutomationController(
+                    command: command,
+                    helperWatchdogSeconds: previousSettings.helperWatchdogSeconds
+                ).isEnabled
                 configFile.set("HOTSPOT_SSID", hotspotSSID)
                 configFile.set("PROXY_TYPE", proxyType)
                 configFile.set("PROXY_PORT", proxyPort)
@@ -880,21 +892,49 @@ final class SettingsWindowController: NSWindowController {
                 configFile.set("PROXY_CHECK_TIMEOUT", proxyCheckTimeout)
                 configFile.set("HELPER_WATCHDOG_SECONDS", helperWatchdogSeconds)
 
-                try configFile.write(path: configPath)
-                try AutomationController(
-                    command: command,
-                    helperWatchdogSeconds: helperWatchdogSeconds
-                ).setEnabled(startAutomatically)
-                self?.runCommand(argument: "run")
+                let configChanged = try configFile.write(path: configPath)
+                let automationChanged = startAutomatically != previousStartAutomatically
+                    || (startAutomatically && helperWatchdogSeconds != previousSettings.helperWatchdogSeconds)
                 DispatchQueue.main.async {
                     self?.setSaving(false)
                     self?.close()
                 }
+                self?.applySavedSettings(
+                    command: command,
+                    startAutomatically: startAutomatically,
+                    helperWatchdogSeconds: helperWatchdogSeconds,
+                    automationChanged: automationChanged,
+                    shouldReconcile: configChanged
+                )
             } catch {
                 DispatchQueue.main.async {
                     self?.setSaving(false)
                     self?.showError(String(describing: error))
                 }
+            }
+        }
+    }
+
+    private func applySavedSettings(
+        command: String,
+        startAutomatically: Bool,
+        helperWatchdogSeconds: String,
+        automationChanged: Bool,
+        shouldReconcile: Bool
+    ) {
+        do {
+            if automationChanged {
+                try AutomationController(
+                    command: command,
+                    helperWatchdogSeconds: helperWatchdogSeconds
+                ).setEnabled(startAutomatically)
+            }
+            if shouldReconcile {
+                runCommand(argument: "run")
+            }
+        } catch {
+            DispatchQueue.main.async { [weak self] in
+                self?.showError(String(describing: error))
             }
         }
     }

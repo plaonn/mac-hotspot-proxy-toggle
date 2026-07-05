@@ -153,7 +153,7 @@ Advanced settings:
 - `Proxy Check Timeout`: seconds
 - `Watchdog Interval`: seconds
 
-Settings 저장은 whitelisted config key만 갱신하고, legacy `HOTSPOT_SSIDS`, `HOTSPOT_DHCP_MARKERS`, `STRICT_SSID`, `NOTIFICATION_LOCALE` key는 저장 시 제거함. 저장 후 현재 network state에 대해 `hotspot-proxy-toggle run`을 한 번 호출함. 자동 시작을 끄면 helper/menu LaunchAgent plist는 제거하지만 현재 열려 있는 menu app process는 유지함.
+Settings 저장은 whitelisted config key만 갱신하고, legacy `HOTSPOT_SSIDS`, `HOTSPOT_DHCP_MARKERS`, `STRICT_SSID`, `NOTIFICATION_LOCALE` key는 저장 시 제거함. 저장창은 config write 성공까지만 기다리고, LaunchAgent 반영과 현재 network state에 대한 `hotspot-proxy-toggle run` 호출은 저장창을 닫은 뒤 비동기로 수행함. 설정값이 실제로 바뀌지 않은 저장은 config file rewrite, LaunchAgent reload, reconcile을 생략함. 자동 시작을 끄면 helper/menu LaunchAgent plist는 제거하지만 현재 열려 있는 menu app process는 유지함.
 
 Settings window는 hotspot/proxy decision이나 macOS proxy write policy를 재구현하지 않음.
 

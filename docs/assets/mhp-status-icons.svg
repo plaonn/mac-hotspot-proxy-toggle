@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="760" height="220" viewBox="0 0 760 220" role="img" aria-labelledby="title desc">
-  <title id="title">MHP menu bar status icons</title>
-  <desc id="desc">Three MHP status icons: hotspot proxy on, non-hotspot, and hotspot proxy unavailable.</desc>
+  <title id="title">Mac Hotspot Proxy Toggle menu bar status icons</title>
+  <desc id="desc">Three Mac Hotspot Proxy Toggle status icons: hotspot proxy on, non-hotspot, and hotspot proxy unavailable.</desc>
   <defs>
     <mask id="knockout-hotspot" maskUnits="userSpaceOnUse">
       <rect width="760" height="220" fill="#fff"/>

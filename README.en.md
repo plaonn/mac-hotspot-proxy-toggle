@@ -3,7 +3,7 @@
 [English](README.en.md) | [한국어](README.md)
 
 <p>
-  <img src="docs/assets/mhp-app-icon.svg" width="96" alt="MHP app icon">
+  <img src="docs/assets/mhp-app-icon.svg" width="96" alt="Mac Hotspot Proxy Toggle app icon">
 </p>
 
 A small macOS utility that turns system proxy settings on only when the current Wi-Fi exactly matches a configured phone hotspot SSID and the proxy endpoint is available.
@@ -12,13 +12,13 @@ A small macOS utility that turns system proxy settings on only when the current 
 
 macOS proxy settings are scoped to a network service such as `Wi-Fi`, not to each Wi-Fi SSID. Phone hotspot router IPs can also change between connections.
 
-MHP reconciles the current state:
+Mac Hotspot Proxy Toggle reconciles the current state:
 
 1. The default route is Wi-Fi.
 2. The current Wi-Fi SSID exactly matches the configured `HOTSPOT_SSID`.
 3. The proxy endpoint responds on `router:PROXY_PORT`.
 
-If any condition does not match, MHP disables the supported proxy backend. Current backends are `socks5` and `http`.
+If any condition does not match, Mac Hotspot Proxy Toggle disables the supported proxy backend. Current backends are `socks5` and `http`.
 
 ## Quick Install
 
@@ -82,7 +82,7 @@ See [docs/CONFIG.md](docs/CONFIG.md) for all settings.
 
 ## Status Icons
 
-![MHP status icons](docs/assets/mhp-status-icons.svg)
+![Mac Hotspot Proxy Toggle status icons](docs/assets/mhp-status-icons.svg)
 
 The menu bar item is icon-only by default. It follows macOS template icon behavior, so state is expressed with alpha and knockout shapes instead of fixed colors.
 

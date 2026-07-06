@@ -83,6 +83,15 @@ sha256_for_url() {
   shasum -a 256 "$tmp" | /usr/bin/awk '{ print $1 }'
 }
 
+require_version_file_matches_release() {
+  local version_file version_without_prefix
+
+  version_file="$(/usr/bin/tr -d '[:space:]' <"$ROOT_DIR/VERSION")"
+  version_without_prefix="${VERSION#v}"
+  [[ "$version_file" == "$version_without_prefix" ]] ||
+    die "VERSION file has $version_file but release version is $version_without_prefix"
+}
+
 update_formula() {
   local url="$1"
   local sha256="$2"
@@ -188,6 +197,7 @@ main() {
   if [[ "$UPDATE_HOMEBREW_TAP" == "1" ]]; then
     require_clean_worktree "$TAP_DIR"
   fi
+  require_version_file_matches_release
 
   cd "$ROOT_DIR"
   push_source_release

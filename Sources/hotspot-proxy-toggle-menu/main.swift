@@ -159,9 +159,9 @@ enum ProxySummary {
             case .on: return "핫스팟 프록시 켜짐"
             case .unavailable: return "핫스팟 프록시 사용 불가"
             case .idle: return "핫스팟 대기"
-            case .off: return "MHP 꺼짐"
+            case .off: return "핫스팟 프록시 꺼짐"
             case .notWiFi: return "Wi-Fi 준비 안 됨"
-            case .error: return "MHP 오류"
+            case .error: return "핫스팟 프록시 오류"
             }
         case .auto, .en:
             switch self {
@@ -169,9 +169,9 @@ enum ProxySummary {
             case .on: return "Hotspot Proxy On"
             case .unavailable: return "Hotspot Proxy Unavailable"
             case .idle: return "Hotspot Proxy Idle"
-            case .off: return "MHP Off"
+            case .off: return "Hotspot Proxy Off"
             case .notWiFi: return "Wi-Fi Not Ready"
-            case .error: return "MHP Error"
+            case .error: return "Hotspot Proxy Error"
             }
         }
     }
@@ -193,7 +193,7 @@ enum ProxySummary {
             case .on: return "현재 트래픽이 핫스팟 프록시를 사용합니다."
             case .unavailable: return "핫스팟은 감지됐지만 프록시 서버가 응답하지 않습니다."
             case .idle: return "현재 Wi-Fi는 설정한 핫스팟이 아닙니다."
-            case .off: return "MHP가 꺼져 있습니다."
+            case .off: return "핫스팟 프록시가 꺼져 있습니다."
             case .notWiFi: return "Wi-Fi route 또는 router가 준비되지 않았습니다."
             case .error: return "핫스팟 프록시 상태를 읽을 수 없습니다."
             }
@@ -203,7 +203,7 @@ enum ProxySummary {
             case .on: return "Traffic is using the hotspot proxy."
             case .unavailable: return "Hotspot detected, but the proxy server is not responding."
             case .idle: return "Current Wi-Fi is not a configured hotspot."
-            case .off: return "MHP is off."
+            case .off: return "Hotspot proxy is off."
             case .notWiFi: return "Wi-Fi route or router is not ready."
             case .error: return "Could not read hotspot proxy status."
             }
@@ -836,7 +836,7 @@ final class SettingsWindowController: NSWindowController {
 
     private func applyLanguage() {
         let korean = selectedLanguage().resolved == .ko
-        window?.title = korean ? "MHP 설정" : "MHP Settings"
+        window?.title = korean ? "\(BuildInfo.appName) 설정" : "\(BuildInfo.appName) Settings"
         hotspotLabel.stringValue = korean ? "핫스팟 SSID" : "Hotspot SSID"
         proxyTypeLabel.stringValue = korean ? "프록시 유형" : "Proxy Type"
         proxyPortLabel.stringValue = korean ? "프록시 포트" : "Proxy Port"
@@ -1034,6 +1034,10 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
 
         statusMenuItem.isEnabled = false
 
+        let headerItem = NSMenuItem(title: "\(BuildInfo.appName) \(BuildInfo.appVersion)", action: nil, keyEquivalent: "")
+        headerItem.isEnabled = false
+        menu.addItem(headerItem)
+        menu.addItem(.separator())
         menu.addItem(statusMenuItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: menuText(en: "Settings...", ko: "설정..."), action: #selector(openSettings), keyEquivalent: ","))
@@ -1041,7 +1045,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: menuText(en: "Refresh Status", ko: "상태 새로고침"), action: #selector(refreshStatusFromMenu), keyEquivalent: "r"))
         menu.addItem(NSMenuItem(title: menuText(en: "Reconcile Now", ko: "지금 동기화"), action: #selector(reconcileNow), keyEquivalent: ""))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: menuText(en: "Quit MHP", ko: "MHP 종료"), action: #selector(quit), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: menuText(en: "Quit \(BuildInfo.appName)", ko: "\(BuildInfo.appName) 종료"), action: #selector(quit), keyEquivalent: "q"))
 
         for item in menu.items {
             item.target = self

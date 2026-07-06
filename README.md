@@ -3,7 +3,7 @@
 [English](README.en.md) | 한국어
 
 <p>
-  <img src="docs/assets/mhp-app-icon.svg" width="96" alt="MHP app icon">
+  <img src="docs/assets/mhp-app-icon.svg" width="96" alt="Mac Hotspot Proxy Toggle app icon">
 </p>
 
 일치하는 휴대폰 핫스팟과 프록시 endpoint가 있을 때만 macOS 프록시 설정을 켜는 작은 macOS 유틸리티입니다.
@@ -12,7 +12,7 @@
 
 macOS 프록시 설정은 Wi-Fi SSID별이 아니라 `Wi-Fi` 같은 network service 단위로 적용됩니다. 휴대폰 핫스팟은 연결할 때마다 라우터 IP가 바뀔 수도 있습니다.
 
-MHP는 현재 네트워크 상태를 한 번 확인하고, 아래 조건이 맞을 때만 macOS 프록시를 켭니다.
+Mac Hotspot Proxy Toggle은 현재 네트워크 상태를 한 번 확인하고, 아래 조건이 맞을 때만 macOS 프록시를 켭니다.
 
 1. 기본 route가 Wi-Fi입니다.
 2. 현재 Wi-Fi SSID가 설정한 `HOTSPOT_SSID`와 정확히 일치합니다.
@@ -82,7 +82,7 @@ REQUIRE_PROXY_CHECK=1
 
 ## 상태 아이콘
 
-![MHP status icons](docs/assets/mhp-status-icons.svg)
+![Mac Hotspot Proxy Toggle status icons](docs/assets/mhp-status-icons.svg)
 
 Menu bar item은 기본적으로 아이콘만 표시합니다. macOS template icon 규칙에 맞춰 색상 대신 alpha와 knockout shape으로 상태를 구분합니다.
 

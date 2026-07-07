@@ -116,6 +116,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          brew audit --formula "homebrew-tap/Formula/${FORMULA_NAME}.rb"
-          brew install --build-from-source "homebrew-tap/Formula/${FORMULA_NAME}.rb"
-          brew test "homebrew-tap/Formula/${FORMULA_NAME}.rb"
+          formula_ref="plaonn/tap/${FORMULA_NAME}"
+          brew tap plaonn/tap "$(pwd)/homebrew-tap"
+          brew audit --formula "$formula_ref"
+          brew install --build-from-source "$formula_ref"
+          brew test "$formula_ref"

@@ -17,7 +17,7 @@ on:
         type: boolean
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   update-homebrew-tap:
@@ -121,3 +121,18 @@ jobs:
           brew audit --formula "$formula_ref"
           brew install --build-from-source "$formula_ref"
           brew test "$formula_ref"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/github-release.sh "$VERSION"
+
+      - name: Verify release surfaces
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          gh api -X GET "repos/${GITHUB_REPOSITORY}/releases/tags/${VERSION}" \
+            --jq '.html_url'
+          grep -F "refs/tags/${VERSION}.tar.gz" "homebrew-tap/Formula/${FORMULA_NAME}.rb"

@@ -11,6 +11,7 @@ FORMULA_REL_PATH="Formula/$FORMULA_NAME.rb"
 FORMULA_PATH="$TAP_DIR/$FORMULA_REL_PATH"
 RUN_HOMEBREW_CHECKS="${RUN_HOMEBREW_CHECKS:-1}"
 UPDATE_HOMEBREW_TAP="${UPDATE_HOMEBREW_TAP:-1}"
+CREATE_GITHUB_RELEASE="${CREATE_GITHUB_RELEASE:-1}"
 
 usage() {
   cat <<'EOF'
@@ -24,6 +25,8 @@ Environment:
                          Default: 1.
   RUN_HOMEBREW_CHECKS    Set to 0 to skip brew audit/install/test after pushing
                          the tap update. Default: 1.
+  CREATE_GITHUB_RELEASE  Set to 0 to skip creating the GitHub Release after a
+                         full local release. Default: 1.
 EOF
 }
 
@@ -171,6 +174,15 @@ run_homebrew_checks() {
   brew test "$TAP_NAME/$FORMULA_NAME"
 }
 
+create_github_release() {
+  [[ "$CREATE_GITHUB_RELEASE" == "1" ]] || {
+    printf 'Skipped GitHub Release creation because CREATE_GITHUB_RELEASE=%s\n' "$CREATE_GITHUB_RELEASE"
+    return 0
+  }
+
+  ./scripts/github-release.sh "$VERSION"
+}
+
 main() {
   if [[ -z "$VERSION" || "$VERSION" == "-h" || "$VERSION" == "--help" ]]; then
     usage
@@ -191,6 +203,7 @@ main() {
     require_command ruby
     require_command shasum
     require_command brew
+    require_command gh
   fi
 
   require_clean_worktree "$ROOT_DIR"
@@ -204,8 +217,10 @@ main() {
   if [[ "$UPDATE_HOMEBREW_TAP" == "1" ]]; then
     push_tap_update
     run_homebrew_checks
+    create_github_release
   else
     printf 'Skipped Homebrew tap update because UPDATE_HOMEBREW_TAP=%s\n' "$UPDATE_HOMEBREW_TAP"
+    printf 'Skipped local GitHub Release creation; GitHub Actions will create it after tap publication.\n'
   fi
 
   printf 'Released %s\n' "$VERSION"

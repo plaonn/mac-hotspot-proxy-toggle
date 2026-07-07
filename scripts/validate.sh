@@ -15,6 +15,7 @@ scripts=(
   "scripts/build-helper.sh"
   "scripts/build-menu-bar.sh"
   "scripts/build-app.sh"
+  "scripts/github-release.sh"
   "scripts/release.sh"
 )
 

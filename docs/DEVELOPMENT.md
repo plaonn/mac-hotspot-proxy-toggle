@@ -59,7 +59,7 @@ make install PREFIX=/usr/local
 
 ## Release
 
-Release tag를 push하면 GitHub Actions가 Homebrew tap Formula 갱신을 수행합니다. 이 workflow는 source validation, Formula `url`/`sha256` 갱신, tap commit/push, `brew audit`, source install, `brew test`를 순서대로 실행합니다.
+Release tag를 push하면 GitHub Actions가 GitHub Release 생성과 Homebrew tap Formula 갱신을 수행합니다. 이 workflow는 source validation, Formula `url`/`sha256` 갱신, tap commit/push, `brew audit`, source install, `brew test`, GitHub Release 생성, release surface 검증을 순서대로 실행합니다.
 
 ```bash
 git tag v1.4.1
@@ -68,7 +68,7 @@ git push origin main v1.4.1
 
 Workflow가 `plaonn/homebrew-tap`에 push하려면 source repository secret `HOMEBREW_TAP_TOKEN`이 필요합니다. Secret 값은 저장소에 넣지 않습니다.
 
-로컬에서 source validation과 tag push까지만 수행하고 tap 갱신은 GitHub Actions에 맡기려면 다음처럼 실행합니다.
+로컬에서 source validation과 tag push까지만 수행하고 GitHub Release 생성과 tap 갱신은 GitHub Actions에 맡기려면 다음처럼 실행합니다.
 
 ```bash
 UPDATE_HOMEBREW_TAP=0 ./scripts/release.sh v1.4.1
@@ -80,4 +80,4 @@ GitHub Actions를 사용하지 않고 로컬에서 Release tag와 Homebrew tap F
 HOMEBREW_TAP_DIR=../homebrew-tap ./scripts/release.sh v1.4.1
 ```
 
-이 로컬 helper도 source validation, tag push, Formula `url`/`sha256` 갱신, tap commit/push, `brew audit`, source install, `brew test`를 순서대로 실행합니다.
+이 로컬 helper도 source validation, tag push, Formula `url`/`sha256` 갱신, tap commit/push, `brew audit`, source install, `brew test`, GitHub Release 생성을 순서대로 실행합니다.

@@ -125,7 +125,32 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./scripts/github-release.sh "$VERSION"
+        run: |
+          set -euo pipefail
+
+          if [[ -x ./scripts/github-release.sh ]]; then
+            ./scripts/github-release.sh "$VERSION"
+            exit 0
+          fi
+
+          if gh api -X GET "repos/${GITHUB_REPOSITORY}/releases/tags/${VERSION}" >/dev/null 2>&1; then
+            printf 'GitHub Release already exists: %s\n' "$VERSION"
+            exit 0
+          fi
+
+          notes_path="$(mktemp)"
+          trap 'rm -f "$notes_path"' EXIT
+          {
+            printf '## English\n\n'
+            printf 'Release %s.\n\n' "$VERSION"
+            printf '## 한국어\n\n'
+            printf '%s 릴리스입니다.\n' "$VERSION"
+          } >"$notes_path"
+
+          gh release create "$VERSION" \
+            --title "$VERSION" \
+            --notes-file "$notes_path" \
+            --verify-tag
 
       - name: Verify release surfaces
         env:

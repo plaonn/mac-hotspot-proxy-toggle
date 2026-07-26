@@ -1,14 +1,14 @@
 # UI
 
 <p>
-  <img src="assets/mhp-app-icon.svg" width="96" alt="Mac Hotspot Proxy Toggle app icon">
+  <img src="assets/mac-hotspot-proxy-toggle-app-icon.svg" width="96" alt="Mac Hotspot Proxy Toggle app icon">
 </p>
 
-Mac Hotspot Proxy Toggle은 menu bar companion과 `MHP.app`을 제공합니다. 핵심 프록시 판단과 macOS proxy write는 계속 `hotspot-proxy-toggle run`이 담당하고, UI는 상태 표시와 사용자의 즉시 실행 진입점 역할만 합니다.
+Mac Hotspot Proxy Toggle은 menu bar companion과 `Mac Hotspot Proxy Toggle.app`을 제공합니다. 핵심 프록시 판단과 macOS proxy write는 계속 `hotspot-proxy-toggle run`이 담당하고, UI는 상태 표시와 사용자의 즉시 실행 진입점 역할만 합니다.
 
 ## Menu Bar Companion
 
-![Mac Hotspot Proxy Toggle menu preview](assets/mhp-menu-preview.svg)
+![Mac Hotspot Proxy Toggle menu preview](assets/mac-hotspot-proxy-toggle-menu-preview.svg)
 
 위 이미지는 README용 preview입니다. 실제 메뉴바 아이콘은 macOS template image로 렌더링되며, light/dark mode tint를 따릅니다.
 
@@ -22,9 +22,11 @@ UI state JSON 기본 경로:
 
 이 파일에는 SSID, router IP, local path를 넣지 않습니다.
 
+macOS가 command-line SSID를 숨기는 환경에서는 app이 위치 권한을 요청하고 CoreWLAN으로 현재 SSID를 읽습니다. 이 값은 UI state와 분리된 private Wi-Fi identity cache에 저장되며, runtime은 현재 Wi-Fi device와 `ConnectionID`가 cache와 모두 같을 때만 사용합니다.
+
 ## 상태 아이콘
 
-![Mac Hotspot Proxy Toggle status icons](assets/mhp-status-icons.svg)
+![Mac Hotspot Proxy Toggle status icons](assets/mac-hotspot-proxy-toggle-status-icons.svg)
 
 Menu bar status item은 기본적으로 상태 아이콘만 표시합니다. `MENU_BAR_TITLE`을 지정하면 title 옆에 아이콘을 표시합니다.
 
@@ -52,9 +54,9 @@ Menu status는 notification 문맥과 맞춘 5상태를 사용합니다.
 - `Wi-Fi Not Ready`: Wi-Fi route 또는 router가 아직 준비되지 않았습니다.
 - `Hotspot Proxy Error`: 상태를 읽거나 해석하지 못했습니다.
 
-## MHP.app
+## Mac Hotspot Proxy Toggle.app
 
-`MHP.app`은 Finder, Spotlight, Launchpad에서 실행할 수 있는 LSUIElement app입니다. Dock icon을 띄우지 않고 menu bar item만 표시합니다.
+`Mac Hotspot Proxy Toggle.app`은 Finder, Spotlight, Launchpad에서 실행할 수 있는 LSUIElement app입니다. Dock icon을 띄우지 않고 menu bar item만 표시합니다.
 
 App bundle은 핫스팟 프록시 켜짐 상태 glyph를 기반으로 한 아이콘을 사용합니다. Notification은 가능하면 이 app sender를 사용해 같은 app icon으로 표시되게 시도합니다.
 

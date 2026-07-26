@@ -7,7 +7,7 @@
   <key>CFBundleExecutable</key>
   <string>hotspot-proxy-toggle-menu</string>
   <key>CFBundleIdentifier</key>
-  <string>com.github.plaonn.hotspot-proxy-toggle.mhp</string>
+  <string>com.github.plaonn.mac-hotspot-proxy-toggle</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
@@ -15,9 +15,9 @@
   <key>CFBundleDisplayName</key>
   <string>Mac Hotspot Proxy Toggle</string>
   <key>CFBundleIconFile</key>
-  <string>MHP</string>
+  <string>MacHotspotProxyToggle</string>
   <key>CFBundleIconName</key>
-  <string>MHP</string>
+  <string>MacHotspotProxyToggle</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -30,5 +30,7 @@
   <true/>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>Mac Hotspot Proxy Toggle uses the current Wi-Fi name only to match the hotspot configured by the user.</string>
 </dict>
 </plist>

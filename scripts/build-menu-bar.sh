@@ -17,6 +17,11 @@ if [[ ! -d /System/Library/Frameworks/AppKit.framework ]]; then
   exit 127
 fi
 
+if [[ ! -d /System/Library/Frameworks/CoreLocation.framework ]] || [[ ! -d /System/Library/Frameworks/CoreWLAN.framework ]]; then
+  printf 'CoreLocation or CoreWLAN framework not found; cannot build menu bar companion\n' >&2
+  exit 127
+fi
+
 /bin/mkdir -p "$BUILD_DIR"
 
 APP_VERSION="$(/usr/bin/tr -d '[:space:]' <"$VERSION_FILE")"
@@ -37,6 +42,8 @@ swiftc \
   "$ROOT_DIR/Sources/hotspot-proxy-toggle-menu/main.swift" \
   "$GENERATED_VERSION" \
   -framework AppKit \
+  -framework CoreLocation \
+  -framework CoreWLAN \
   -o "$OUTPUT"
 
 printf '%s\n' "$OUTPUT"

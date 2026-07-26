@@ -167,7 +167,7 @@ app_build_failure_keeps_core_install() {
   main >"$TEST_TMP/app-failure.out" 2>&1
   output="$(<"$TEST_TMP/app-failure.out")"
 
-  assert_contains "$output" "MHP.app install failed; continuing without Finder app" &&
+  assert_contains "$output" "Mac Hotspot Proxy Toggle.app install failed; continuing without Finder app" &&
     assert_contains "$output" "Trigger mode: event" &&
     assert_contains "$output" "App: disabled" &&
     [[ "${EVENTS[*]-}" == "cleanup install-files write-config app event-helper event-plist helper-load" ]]

@@ -1,4 +1,6 @@
 import AppKit
+import CoreLocation
+import CoreWLAN
 import Darwin
 import Foundation
 
@@ -358,6 +360,140 @@ enum MenuBarIcon {
 struct CommandResult {
     let status: Int32
     let output: String
+}
+
+private struct WiFiIdentity: Codable, Equatable {
+    let wifiDevice: String
+    let connectionID: String
+    let ssid: String
+
+    enum CodingKeys: String, CodingKey {
+        case wifiDevice = "wifi_device"
+        case connectionID = "connection_id"
+        case ssid
+    }
+}
+
+private final class WiFiIdentityBroker: NSObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    private let cachePath = defaultWiFiIdentityPath()
+    private let onIdentityChange: () -> Void
+
+    init(onIdentityChange: @escaping () -> Void) {
+        self.onIdentityChange = onIdentityChange
+        super.init()
+        manager.delegate = self
+    }
+
+    func start() {
+        guard Bundle.main.bundleURL.pathExtension == "app" else {
+            return
+        }
+
+        switch manager.authorizationStatus {
+        case .authorized, .authorizedAlways:
+            refresh()
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .denied, .restricted:
+            removeCache()
+        @unknown default:
+            removeCache()
+        }
+    }
+
+    func refresh() {
+        guard manager.authorizationStatus == .authorized
+                || manager.authorizationStatus == .authorizedAlways,
+              let interface = CWWiFiClient.shared().interface(),
+              let wifiDevice = interface.interfaceName,
+              let ssid = interface.ssid(),
+              !ssid.isEmpty,
+              let connectionID = currentConnectionID(for: wifiDevice),
+              !connectionID.isEmpty else {
+            return
+        }
+
+        let identity = WiFiIdentity(
+            wifiDevice: wifiDevice,
+            connectionID: connectionID,
+            ssid: ssid
+        )
+        let previous = readCache()
+        guard previous != identity else {
+            return
+        }
+
+        do {
+            let directory = (cachePath as NSString).deletingLastPathComponent
+            try FileManager.default.createDirectory(
+                atPath: directory,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
+            let data = try JSONEncoder().encode(identity)
+            try data.write(to: URL(fileURLWithPath: cachePath), options: .atomic)
+            _ = chmod(cachePath, S_IRUSR | S_IWUSR)
+            onIdentityChange()
+        } catch {
+            removeCache()
+        }
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        switch manager.authorizationStatus {
+        case .authorized, .authorizedAlways:
+            refresh()
+        case .denied, .restricted:
+            removeCache()
+        case .notDetermined:
+            break
+        @unknown default:
+            removeCache()
+        }
+    }
+
+    private func currentConnectionID(for wifiDevice: String) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/ipconfig")
+        process.arguments = ["getsummary", wifiDevice]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return nil
+        }
+
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        guard let text = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let parts = line.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2,
+                  parts[0].trimmingCharacters(in: .whitespaces) == "ConnectionID" else {
+                continue
+            }
+            return parts[1].trimmingCharacters(in: .whitespaces)
+        }
+        return nil
+    }
+
+    private func readCache() -> WiFiIdentity? {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(WiFiIdentity.self, from: data)
+    }
+
+    private func removeCache() {
+        try? FileManager.default.removeItem(atPath: cachePath)
+    }
 }
 
 struct UIState: Decodable {
@@ -1005,6 +1141,9 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     private var stateWatcher: DispatchSourceFileSystemObject?
     private var stateDirectoryWatcher: DispatchSourceFileSystemObject?
     private var settingsWindowController: SettingsWindowController?
+    private lazy var wifiIdentityBroker = WiFiIdentityBroker { [weak self] in
+        self?.reconcileAfterWiFiIdentityChange()
+    }
 
     init(config: MenuConfig) {
         self.config = config
@@ -1015,6 +1154,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         configureStatusItem()
         ensureAutomationAgentLoaded()
+        wifiIdentityBroker.start()
         readStateOrRefresh()
         startStateWatchers()
         timer = Timer.scheduledTimer(withTimeInterval: config.refreshSeconds, repeats: true) { [weak self] _ in
@@ -1125,10 +1265,19 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     }
 
     private func readStateOrRefresh() {
+        wifiIdentityBroker.refresh()
         if applyStateFile() {
             return
         }
         refreshStatus()
+    }
+
+    private func reconcileAfterWiFiIdentityChange() {
+        runCommand(argument: "run") { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.refreshStatus()
+            }
+        }
     }
 
     @discardableResult
@@ -1361,6 +1510,10 @@ func defaultConfigPath() -> String {
 
 func defaultStatePath() -> String {
     "\(homeDirectory())/Library/Application Support/hotspot-proxy-toggle/status.json"
+}
+
+func defaultWiFiIdentityPath() -> String {
+    "\(homeDirectory())/Library/Application Support/hotspot-proxy-toggle/wifi-identity.json"
 }
 
 func defaultLockPath() -> String {

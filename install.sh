@@ -16,12 +16,14 @@ HELPER_PLIST_PATH="$HOME/Library/LaunchAgents/$HELPER_LABEL.plist"
 MENU_BAR_PLIST_PATH="$HOME/Library/LaunchAgents/$MENU_BAR_LABEL.plist"
 LOG_DIR="$HOME/Library/Logs"
 UI_STATE_PATH="${HOTSPOT_PROXY_UI_STATE:-$HOME/Library/Application Support/hotspot-proxy-toggle/status.json}"
+APP_NAME="Mac Hotspot Proxy Toggle"
 CHECK_INTERVAL_SECONDS="${CHECK_INTERVAL_SECONDS:-60}"
 HOTSPOT_TRIGGER_MODE="${HOTSPOT_TRIGGER_MODE:-}"
 HOTSPOT_MENU_BAR="${HOTSPOT_MENU_BAR:-0}"
 HOTSPOT_APP="${HOTSPOT_APP:-1}"
 APP_INSTALL_DIR="${HOTSPOT_APP_INSTALL_DIR:-$HOME/Applications}"
-APP_INSTALL_PATH="$APP_INSTALL_DIR/MHP.app"
+APP_INSTALL_PATH="$APP_INSTALL_DIR/$APP_NAME.app"
+LEGACY_APP_INSTALL_PATH="$APP_INSTALL_DIR/MHP.app"
 MENU_BAR_REFRESH_SECONDS="${MENU_BAR_REFRESH_SECONDS:-30}"
 MENU_BAR_TITLE="${MENU_BAR_TITLE:-}"
 MENU_BAR_INSTALLED=0
@@ -30,6 +32,22 @@ HELPER_DEBOUNCE_SECONDS="${HELPER_DEBOUNCE_SECONDS:-1}"
 HELPER_MAX_RUNS="${HELPER_MAX_RUNS:-3}"
 HELPER_WINDOW_SECONDS="${HELPER_WINDOW_SECONDS:-10}"
 HELPER_WATCHDOG_SECONDS="${HELPER_WATCHDOG_SECONDS:-60}"
+
+stop_app_process_at_path() {
+  local app_path="$1"
+  local executable="$app_path/Contents/MacOS/hotspot-proxy-toggle-menu"
+  local pid command
+
+  [[ -d "$app_path" ]] || return 0
+
+  while IFS= read -r pid; do
+    [[ -n "$pid" ]] || continue
+    command="$(/bin/ps -p "$pid" -o command= 2>/dev/null || true)"
+    if [[ "$command" == "$executable" || "$command" == "$executable "* ]]; then
+      /bin/kill "$pid" 2>/dev/null || true
+    fi
+  done < <(/usr/bin/pgrep -x hotspot-proxy-toggle-menu 2>/dev/null || true)
+}
 
 resolve_trigger_mode() {
   if [[ -z "$HOTSPOT_TRIGGER_MODE" ]]; then
@@ -125,10 +143,15 @@ write_helper_launch_agent() {
 
 write_menu_bar_launch_agent() {
   local escaped_menu escaped_bin escaped_config escaped_log_dir escaped_state escaped_refresh escaped_title
+  local menu_executable="$MENU_BAR_BIN"
+
+  if [[ -x "$APP_INSTALL_PATH/Contents/MacOS/hotspot-proxy-toggle-menu" ]]; then
+    menu_executable="$APP_INSTALL_PATH/Contents/MacOS/hotspot-proxy-toggle-menu"
+  fi
 
   /bin/mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
 
-  escaped_menu="$(escape_sed_replacement "$MENU_BAR_BIN")"
+  escaped_menu="$(escape_sed_replacement "$menu_executable")"
   escaped_bin="$(escape_sed_replacement "$INSTALL_BIN")"
   escaped_config="$(escape_sed_replacement "$CONFIG_PATH")"
   escaped_log_dir="$(escape_sed_replacement "$LOG_DIR")"
@@ -186,9 +209,11 @@ install_app_bundle() {
     return 0
   fi
 
-  if ! app_output="$(APP_PATH="$INSTALL_ROOT/MHP.app" "$SOURCE_DIR/scripts/build-app.sh" 2>&1)"; then
+  stop_app_process_at_path "$LEGACY_APP_INSTALL_PATH"
+
+  if ! app_output="$(APP_PATH="$INSTALL_ROOT/$APP_NAME.app" "$SOURCE_DIR/scripts/build-app.sh" 2>&1)"; then
     printf '%s\n' "$app_output" >&2
-    printf 'App diagnostic: failed to build MHP.app\n' >&2
+    printf 'App diagnostic: failed to build %s.app\n' "$APP_NAME" >&2
     printf 'Hint: install Xcode Command Line Tools or run scripts/build-app.sh for details\n' >&2
     return 1
   fi
@@ -202,6 +227,7 @@ install_app_bundle() {
 
   /bin/mkdir -p "$APP_INSTALL_DIR"
   /bin/rm -rf "$APP_INSTALL_PATH"
+  /bin/rm -rf "$LEGACY_APP_INSTALL_PATH"
   /bin/cp -R "$app_path" "$APP_INSTALL_PATH"
   APP_INSTALLED=1
   printf 'Installed app: %s\n' "$APP_INSTALL_PATH"
@@ -291,7 +317,7 @@ main() {
   install_files || return
   write_config_if_missing || return
   if ! install_app_bundle; then
-    printf 'MHP.app install failed; continuing without Finder app\n' >&2
+    printf '%s.app install failed; continuing without Finder app\n' "$APP_NAME" >&2
   fi
 
   if [[ "$HOTSPOT_TRIGGER_MODE" == "event" ]]; then

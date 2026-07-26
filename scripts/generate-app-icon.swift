@@ -9,8 +9,8 @@ guard CommandLine.arguments.count == 2 else {
 let outputURL = URL(fileURLWithPath: CommandLine.arguments[1])
 let fileManager = FileManager.default
 let temporaryRoot = URL(fileURLWithPath: NSTemporaryDirectory())
-    .appendingPathComponent("mhp-iconset-\(UUID().uuidString)")
-let iconsetURL = temporaryRoot.appendingPathComponent("MHP.iconset")
+    .appendingPathComponent("mac-hotspot-proxy-toggle-iconset-\(UUID().uuidString)")
+let iconsetURL = temporaryRoot.appendingPathComponent("MacHotspotProxyToggle.iconset")
 
 do {
     try fileManager.createDirectory(at: iconsetURL, withIntermediateDirectories: true)

@@ -69,8 +69,10 @@ reset_runtime_state() {
   NOTIFICATION_LOCALE="en"
   STATE_PATH="$TEST_TMP/notify-state"
   UI_STATE_PATH="$TEST_TMP/status.json"
+  SSID_CACHE_PATH="$TEST_TMP/wifi-identity.json"
   rm -f "$STATE_PATH"
   rm -f "$UI_STATE_PATH"
+  rm -f "$SSID_CACHE_PATH"
   PROXY_STATE_CHANGED=0
   MOCK_DEFAULT_INTERFACE="en0"
   MOCK_IPCONFIG_SUMMARY=""
@@ -156,6 +158,42 @@ hotspot_by_exact_ssid() {
     assert_contains "$output" "status=hotspot" &&
     assert_contains "$output" "reason=ssid" &&
     assert_contains "$output" "router=172.20.10.1"
+}
+
+redacted_ssid_uses_connection_bound_identity() {
+  local output rc
+
+  reset_runtime_state
+  HOTSPOT_SSID="My Phone"
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.1\nConnectionID : 42\nSSID : <redacted>'
+  printf '%s\n' '{"wifi_device":"en0","connection_id":"42","ssid":"My Phone"}' >"$SSID_CACHE_PATH"
+
+  set +e
+  output="$(evaluate)"
+  rc="$?"
+  set -e
+
+  [[ "$rc" == "0" ]] &&
+    assert_contains "$output" "status=hotspot" &&
+    assert_contains "$output" "reason=ssid"
+}
+
+redacted_ssid_rejects_stale_identity() {
+  local output rc
+
+  reset_runtime_state
+  HOTSPOT_SSID="My Phone"
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.1\nConnectionID : 43\nSSID : <redacted>'
+  printf '%s\n' '{"wifi_device":"en0","connection_id":"42","ssid":"My Phone"}' >"$SSID_CACHE_PATH"
+
+  set +e
+  output="$(evaluate)"
+  rc="$?"
+  set -e
+
+  [[ "$rc" == "1" ]] &&
+    assert_contains "$output" "status=not-hotspot" &&
+    assert_contains "$output" "ssid=unknown"
 }
 
 missing_hotspot_ssid_does_not_match() {
@@ -460,6 +498,8 @@ unsupported_language_is_rejected() {
 }
 
 run_test "hotspot by exact SSID" hotspot_by_exact_ssid
+run_test "redacted SSID uses connection-bound identity" redacted_ssid_uses_connection_bound_identity
+run_test "redacted SSID rejects stale identity" redacted_ssid_rejects_stale_identity
 run_test "missing hotspot SSID does not match" missing_hotspot_ssid_does_not_match
 run_test "reject non-Wi-Fi default route" reject_non_wifi_default_route
 run_test "SSID mismatch is not hotspot" ssid_mismatch_is_not_hotspot

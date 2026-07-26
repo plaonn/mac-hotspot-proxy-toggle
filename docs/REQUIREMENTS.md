@@ -15,9 +15,9 @@
 - 요구사항: 현재 default route가 Wi-Fi이고 Wi-Fi network가 설정된 hotspot 조건과 일치할 때만 macOS proxy setting을 켬.
 - 근거: macOS network service는 단일 SSID보다 넓은 범위이므로, 관련 없는 네트워크에서 proxy setting이 켜지면 안 됨.
 - 방지 실패: 일반 Wi-Fi traffic이 휴대폰 전용 proxy 설정으로 routing되는 일을 막음.
-- 명세: `WIFI_DEVICE` override가 없으면 macOS hardware port discovery로 Wi-Fi interface를 찾음. `NETWORK_SERVICE` override가 없으면 Wi-Fi device에 대응하는 macOS network service를 자동으로 찾음. `HOTSPOT_SSID`는 단일 exact match로 판단함.
-- 테스트: `hotspot-proxy-toggle evaluate`는 default route가 Wi-Fi device이고 hotspot 조건이 일치할 때만 `status=hotspot`을 보고함.
-- 자동 테스트: `./tests/run.sh`는 exact SSID match, missing SSID, non-Wi-Fi default route, SSID mismatch를 검증함.
+- 명세: `WIFI_DEVICE` override가 없으면 macOS hardware port discovery로 Wi-Fi interface를 찾음. `NETWORK_SERVICE` override가 없으면 Wi-Fi device에 대응하는 macOS network service를 자동으로 찾음. `HOTSPOT_SSID`는 단일 exact match로 판단함. macOS가 command-line SSID를 `<redacted>`로 반환하면 app bundle이 위치 권한 하에서 CoreWLAN으로 읽은 SSID를 private cache에 기록하고, runtime은 cache의 Wi-Fi device와 `ConnectionID`가 현재 connection과 모두 같을 때만 이를 사용함.
+- 테스트: `hotspot-proxy-toggle evaluate`는 default route가 Wi-Fi device이고, current 또는 connection-bound cached SSID가 hotspot 조건과 일치할 때만 `status=hotspot`을 보고함.
+- 자동 테스트: `./tests/run.sh`는 exact SSID match, redacted SSID의 current/stale connection cache, missing SSID, non-Wi-Fi default route, SSID mismatch를 검증함.
 
 ## R2: 동적 라우터 IP 해석
 
@@ -66,7 +66,7 @@
 - 요구사항: 사용자가 명시적으로 켠 경우, `run`은 실제 macOS proxy setting 변경이나 최종 reconciliation state 변경을 macOS notification으로 안내함.
 - 근거: LaunchAgent 기반 자동 실행은 background에서 일어나므로 사용자는 proxy가 켜졌는지, 꺼졌는지, 또는 현재 Wi-Fi가 설정한 hotspot이 아니라 동작하지 않는지 즉시 알기 어려움.
 - 방지 실패: active Wi-Fi가 바뀌었지만 proxy setting은 이미 꺼져 있어 write가 발생하지 않은 경우를 사용자가 놓치는 일을 막음. 반면 Wi-Fi가 active route가 아니거나 router가 아직 없는 transient 상태의 불필요한 알림은 피함.
-- 명세: `NOTIFY_ON_CHANGE=1`이면 `run`당 최대 한 번 notification을 표시함. 실제 proxy setting 변경이 있거나, hotspot match/endpoint availability를 반영한 state key가 이전 `run`과 달라졌을 때 표시함. default route가 Wi-Fi가 아니거나 Wi-Fi router가 아직 확인되지 않은 상태에서는 notification을 표시하지 않고 state file만 갱신함. 같은 state가 유지되거나 `DRY_RUN=1`이면 표시하지 않음. Notification은 hotspot proxy active, hotspot-but-proxy-unavailable, active-Wi-Fi-but-not-configured-hotspot을 서로 다른 title과 emoji로 구분함. 설치된 `MHP.app` notification sender를 우선 사용해 고정 MHP app icon으로 표시되게 시도하고, 실패하면 `osascript` notification으로 fallback함. `LANGUAGE=auto`는 macOS 언어 설정을 읽고, `en` 또는 `ko` override를 지원함. Notification message에는 SSID, router IP, local path 같은 환경별 값을 포함하지 않음. Notification 실패는 reconciliation 실패로 취급하지 않음.
+- 명세: `NOTIFY_ON_CHANGE=1`이면 `run`당 최대 한 번 notification을 표시함. 실제 proxy setting 변경이 있거나, hotspot match/endpoint availability를 반영한 state key가 이전 `run`과 달라졌을 때 표시함. default route가 Wi-Fi가 아니거나 Wi-Fi router가 아직 확인되지 않은 상태에서는 notification을 표시하지 않고 state file만 갱신함. 같은 state가 유지되거나 `DRY_RUN=1`이면 표시하지 않음. Notification은 hotspot proxy active, hotspot-but-proxy-unavailable, active-Wi-Fi-but-not-configured-hotspot을 서로 다른 title과 emoji로 구분함. 설치된 `Mac Hotspot Proxy Toggle.app` notification sender를 우선 사용해 고정 app icon으로 표시되게 시도하고, 실패하면 `osascript` notification으로 fallback함. `LANGUAGE=auto`는 macOS 언어 설정을 읽고, `en` 또는 `ko` override를 지원함. Notification message에는 SSID, router IP, local path 같은 환경별 값을 포함하지 않음. Notification 실패는 reconciliation 실패로 취급하지 않음.
 - 테스트: `./tests/run.sh`는 notification이 opt-in이고, proxy enable, endpoint unavailable, proxy write 없는 SSID context 변경에서 최종 상태 notification이 생성되는지, not-Wi-Fi/no-router에서는 notification 없이 state만 기록되는지, 한국어 locale override를 검증함.
 
 ## R8: Menu Bar Companion
@@ -79,15 +79,15 @@
 
 ## R9: Finder 실행 가능한 App Bundle
 
-- 요구사항: source install은 사용자가 Finder, Spotlight, Launchpad에서 실행할 수 있는 `MHP.app`을 설치함.
+- 요구사항: source install은 사용자가 Finder, Spotlight, Launchpad에서 실행할 수 있는 `Mac Hotspot Proxy Toggle.app`을 설치함.
 - 근거: `Quit Mac Hotspot Proxy Toggle`로 menu/helper LaunchAgent를 내린 뒤 terminal command를 기억하지 않아도 쉽게 다시 시작할 수 있어야 함.
 - 방지 실패: menu bar companion을 끈 사용자가 재시작하려면 launchctl 또는 installer를 다시 실행해야 하는 상황을 막음.
-- 명세: `MHP.app`은 기존 menu bar companion binary를 app bundle로 포장한 LSUIElement 앱임. 앱은 Dock icon을 표시하지 않고 menu bar item만 표시하며, display name은 `Mac Hotspot Proxy Toggle`임. App bundle은 핫스팟 프록시 켜짐 상태 glyph를 기반으로 한 `MHP.icns`를 포함함. Finder에서 앱을 실행하면 기존 helper 또는 polling LaunchAgent plist가 있는 경우 이를 다시 bootstrap/kickstart하고, 상태 menu를 표시함. App bundle은 hotspot/proxy decision이나 macOS proxy write policy를 재구현하지 않음. Source installer는 기존 설치 호환성을 위해 기본적으로 `~/Applications/MHP.app`을 설치하며, `HOTSPOT_APP=0`으로 생략할 수 있음.
+- 명세: `Mac Hotspot Proxy Toggle.app`은 기존 menu bar companion binary를 app bundle로 포장한 LSUIElement 앱임. 앱은 Dock icon을 표시하지 않고 menu bar item만 표시하며, display name과 bundle file name 모두 `Mac Hotspot Proxy Toggle`임. App bundle은 핫스팟 프록시 켜짐 상태 glyph를 기반으로 한 `MacHotspotProxyToggle.icns`를 포함하고 local source build에서는 bundle 전체를 ad-hoc sign함. Finder에서 앱을 실행하면 기존 helper 또는 polling LaunchAgent plist가 있는 경우 이를 다시 bootstrap/kickstart하고, 상태 menu를 표시함. App bundle은 hotspot/proxy decision이나 macOS proxy write policy를 재구현하지 않음. Source installer는 기본적으로 `~/Applications/Mac Hotspot Proxy Toggle.app`을 설치하고 이전 `~/Applications/MHP.app`을 제거하며, `HOTSPOT_APP=0`으로 생략할 수 있음.
 - 테스트: `scripts/validate.sh`는 AppKit을 사용할 수 있는 macOS 환경에서 app bundle build를 검증함. `./tests/install.sh`는 app build 실패가 core install을 중단하지 않는지 검증함.
 
 ## R10: Settings Window
 
-- 요구사항: `MHP.app`은 사용자가 terminal config 편집 없이 필수 설정과 자동 시작 상태를 관리할 수 있는 Settings window를 제공함.
+- 요구사항: `Mac Hotspot Proxy Toggle.app`은 사용자가 terminal config 편집 없이 필수 설정과 자동 시작 상태를 관리할 수 있는 Settings window를 제공함.
 - 근거: 초기 설정에 필요한 값은 소수이며, background helper와 menu bar app은 사용자 관점에서 하나의 자동 실행 기능으로 동작해야 함.
 - 방지 실패: 사용자가 proxy hotspot과 관련 없는 DHCP marker, Wi-Fi device, network service 같은 내부 knob를 잘못 설정하거나, background helper만 켜지고 front UI가 꺼지는 분리 상태를 일반 설정으로 만들게 되는 일을 막음.
 - 명세: Settings main surface는 `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, `Start Automatically`만 제공함. `Language` 선택은 Settings window UI에도 즉시 반영함. `Start Automatically`를 켜면 helper LaunchAgent와 menu LaunchAgent를 함께 생성/load하고, 끄면 자동 시작 plist를 제거함. Settings 저장은 config write 성공까지만 기다리고, LaunchAgent 반영과 reconcile 호출은 저장창을 닫은 뒤 비동기로 수행함. 설정값이 실제로 바뀌지 않은 저장은 config file rewrite, LaunchAgent reload, reconcile을 생략함. Settings 저장 중 현재 실행 중인 menu app은 종료하지 않음. Advanced에는 troubleshooting용 초 단위 `Proxy Check Timeout`, `Helper Watchdog Interval`만 둠. 저장 후 config가 변경된 경우 한 번 `hotspot-proxy-toggle run`을 호출함.

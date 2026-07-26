@@ -122,16 +122,17 @@ HOTSPOT_PROXY_UI_STATE=~/Library/Application Support/hotspot-proxy-toggle/status
 
 Companion LaunchAgent는 `KeepAlive`를 사용하지 않음. 사용자가 menu에서 `Quit Mac Hotspot Proxy Toggle`을 선택하면 launchd가 즉시 재시작하지 않아야 함. `MENU_BAR_REFRESH_SECONDS`는 UI state file watch 누락이나 sleep/wake 이후 stale UI를 보정하는 fallback refresh 간격임.
 
-## MHP.app
+## Mac Hotspot Proxy Toggle.app
 
-`scripts/build-app.sh`는 menu bar companion binary를 `MHP.app` bundle로 포장함.
+`scripts/build-app.sh`는 menu bar companion binary를 `Mac Hotspot Proxy Toggle.app` bundle로 포장함.
 
 App bundle 원칙:
 
 - `LSUIElement=true`로 Dock icon 없이 menu bar item만 표시함.
 - App bundle executable은 `hotspot-proxy-toggle-menu`임.
-- App bundle display name은 `Mac Hotspot Proxy Toggle`임. Source install의 bundle file name은 호환성을 위해 `MHP.app`으로 유지함.
-- App bundle은 `MHP.icns`를 포함하고 `CFBundleIconFile`/`CFBundleIconName`으로 참조함.
+- App bundle display name과 source install의 bundle file name은 모두 `Mac Hotspot Proxy Toggle`임.
+- App bundle은 `MacHotspotProxyToggle.icns`를 포함하고 `CFBundleIconFile`/`CFBundleIconName`으로 참조함.
+- Local source build는 app bundle 전체를 ad-hoc sign해 Info.plist의 bundle identity와 location usage description을 executable에 결합함.
 - App icon은 핫스팟 프록시 켜짐 상태 glyph를 기반으로 한 컬러 icon임.
 - Finder, Spotlight, Launchpad에서 실행 가능해야 함.
 - 기존 menu companion instance가 이미 실행 중이면 새 instance는 status item을 만들지 않고 종료함.
@@ -141,7 +142,7 @@ App bundle 원칙:
 
 ## Settings Window
 
-`MHP.app` menu의 `Settings...`는 아래 main settings를 제공함. Menu top에는 `Mac Hotspot Proxy Toggle <version>` header를 표시하고, version은 repository `VERSION` file에서 build-time 주입함:
+`Mac Hotspot Proxy Toggle.app` menu의 `Settings...`는 아래 main settings를 제공함. Menu top에는 `Mac Hotspot Proxy Toggle <version>` header를 표시하고, version은 repository `VERSION` file에서 build-time 주입함:
 
 - `Hotspot SSID`: 단일 SSID exact match.
 - `Proxy Type`: `SOCKS5` 또는 `HTTP/HTTPS Web Proxy`.
@@ -200,8 +201,9 @@ Notification 상태 파일 기본 경로:
 3. `route -n get default`에서 default route interface를 읽음.
 4. default interface가 Wi-Fi device가 아니면 hotspot path를 종료함.
 5. `ipconfig getsummary <wifi-device>`에서 DHCP summary를 읽음.
-6. `Router`와 `SSID`를 추출함.
-7. `SSID`가 단일 `HOTSPOT_SSID`와 exact match일 때만 hotspot status로 판단함.
+6. `Router`, `SSID`, `ConnectionID`를 추출함.
+7. macOS가 `SSID`를 `<redacted>`로 반환하면 app bundle이 CoreWLAN과 사용자의 위치 권한으로 기록한 private Wi-Fi identity cache를 사용함. Cache의 Wi-Fi device와 `ConnectionID`가 현재 값과 모두 같아야 함.
+8. 확인된 `SSID`가 단일 `HOTSPOT_SSID`와 exact match일 때만 hotspot status로 판단함.
 
 ## 프록시 확인
 
@@ -236,7 +238,7 @@ macOS proxy setting을 켜기 전에 아래 응답을 요구함:
 
 ## Notification
 
-Notification은 runtime command의 부가 출력 경로임. `bin/hotspot-proxy-toggle run`은 `NOTIFY_ON_CHANGE=1`일 때 설치된 `MHP.app/Contents/MacOS/hotspot-proxy-toggle-menu --notify`를 우선 호출해 최종 proxy state를 표시함. App sender를 사용할 수 없거나 실패하면 macOS `/usr/bin/osascript`의 `display notification`으로 fallback함.
+Notification은 runtime command의 부가 출력 경로임. `bin/hotspot-proxy-toggle run`은 `NOTIFY_ON_CHANGE=1`일 때 설치된 `Mac Hotspot Proxy Toggle.app/Contents/MacOS/hotspot-proxy-toggle-menu --notify`를 우선 호출해 최종 proxy state를 표시함. App sender를 사용할 수 없거나 실패하면 macOS `/usr/bin/osascript`의 `display notification`으로 fallback함.
 
 Notification은 아래 원칙을 따름:
 
@@ -247,7 +249,7 @@ Notification은 아래 원칙을 따름:
 - 중복 알림을 막기 위해 마지막 notification state를 local state file에 저장함. `HOTSPOT_PROXY_STATE`로 경로를 override할 수 있음.
 - `LANGUAGE=auto`이면 macOS 언어 설정을 읽어 한국어 환경에서는 한국어 문구를 사용하고, 그 외에는 영어 문구를 사용함. `en` 또는 `ko`로 고정할 수 있음.
 - Notification title은 3개 상태로 나뉨: hotspot proxy active는 `✅ Hotspot Proxy On`, hotspot은 맞지만 endpoint가 unavailable이면 `⚠️ Hotspot Proxy Unavailable`, active Wi-Fi가 설정한 hotspot이 아니면 `ℹ️ Hotspot Proxy Idle`. 한국어 locale에서는 각각 `✅ 핫스팟 프록시 켜짐`, `⚠️ 핫스팟 프록시 사용 불가`, `ℹ️ 핫스팟 대기`를 사용함.
-- Notification sender는 가능한 경우 `MHP.app` bundle executable이므로 notification은 고정 MHP app icon으로 표시될 수 있음. 상태별 custom notification icon은 지정하지 않음. Notification title의 emoji는 상태 구분 보조 신호로 유지함.
+- Notification sender는 가능한 경우 `Mac Hotspot Proxy Toggle.app` bundle executable이므로 notification은 고정 app icon으로 표시될 수 있음. 상태별 custom notification icon은 지정하지 않음. Notification title의 emoji는 상태 구분 보조 신호로 유지함.
 - 라우터 IP, SSID, local path 같은 환경별 값을 message에 포함하지 않음.
 - `osascript` 실행에 실패해도 reconciliation 자체는 실패시키지 않고 log에만 남김.
 
@@ -298,12 +300,12 @@ HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
 
 `MENU_BAR_REFRESH_SECONDS`로 상태 refresh 간격을, `MENU_BAR_TITLE`로 menu bar title을 바꿀 수 있음. Menu language는 config의 `LANGUAGE=auto|en|ko`를 따름. `MENU_BAR_TITLE` 기본값은 빈 문자열이며 이 경우 status item은 icon-only로 표시됨.
 
-`HOTSPOT_NOTIFICATION_SENDER`로 notification sender executable path를 override할 수 있음. 기본값은 `~/Applications/MHP.app/Contents/MacOS/hotspot-proxy-toggle-menu`임.
+`HOTSPOT_NOTIFICATION_SENDER`로 notification sender executable path를 override할 수 있음. 기본값은 `~/Applications/Mac Hotspot Proxy Toggle.app/Contents/MacOS/hotspot-proxy-toggle-menu`임.
 
-source installer는 기본적으로 Finder 실행용 app bundle도 설치함:
+source installer는 기본적으로 Finder 실행용 app bundle도 설치함. Upgrade 중 legacy app process가 실행 중이면 해당 bundle executable만 종료한 뒤 기존 `MHP.app`을 제거함:
 
 ```text
-~/Applications/MHP.app
+~/Applications/Mac Hotspot Proxy Toggle.app
 ```
 
 `HOTSPOT_APP=0`이면 app bundle 설치를 생략함. `HOTSPOT_APP_INSTALL_DIR`로 설치 directory를 바꿀 수 있음.
@@ -328,7 +330,7 @@ hotspot-proxy-toggle run
 <prefix>/bin/hotspot-proxy-toggle
 <prefix>/libexec/hotspot-proxy-toggle-helper
 <prefix>/libexec/hotspot-proxy-toggle-menu
-<prefix>/libexec/MHP.app
+<prefix>/libexec/Mac Hotspot Proxy Toggle.app
 <prefix>/etc/hotspot-proxy-toggle.conf.example
 ```
 
@@ -336,4 +338,4 @@ hotspot-proxy-toggle run
 
 ## 제거
 
-`uninstall.sh`는 polling/helper/menu LaunchAgent를 모두 unload하고, 설치된 binary tree, command symlink, `~/Applications/MHP.app`을 제거하며, config file은 유지함.
+`uninstall.sh`는 polling/helper/menu LaunchAgent를 모두 unload하고, 설치된 binary tree, command symlink, `~/Applications/Mac Hotspot Proxy Toggle.app`을 제거하며, config file은 유지함.

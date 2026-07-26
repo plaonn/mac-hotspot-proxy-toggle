@@ -3,7 +3,7 @@
 [English](README.en.md) | [한국어](README.md)
 
 <p>
-  <img src="docs/assets/mhp-app-icon.svg" width="96" alt="Mac Hotspot Proxy Toggle app icon">
+  <img src="docs/assets/mac-hotspot-proxy-toggle-app-icon.svg" width="96" alt="Mac Hotspot Proxy Toggle app icon">
 </p>
 
 A small macOS utility that turns system proxy settings on only when the current Wi-Fi exactly matches a configured phone hotspot SSID and the proxy endpoint is available.
@@ -46,7 +46,7 @@ cd mac-hotspot-proxy-toggle
 PROXY_PORT=1080 HOTSPOT_SSID='My Phone Hotspot' ./install.sh
 ```
 
-Source install also installs `~/Applications/MHP.app`. Launch `MHP.app`, then open `Settings...` from the menu bar to configure `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, and `Start Automatically` in the GUI.
+Source install also installs `~/Applications/Mac Hotspot Proxy Toggle.app`. Launch `Mac Hotspot Proxy Toggle.app`, then open `Settings...` from the menu bar to configure `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, and `Start Automatically` in the GUI.
 
 Start the menu bar icon automatically at login:
 
@@ -82,7 +82,7 @@ See [docs/CONFIG.md](docs/CONFIG.md) for all settings.
 
 ## Status Icons
 
-![Mac Hotspot Proxy Toggle status icons](docs/assets/mhp-status-icons.svg)
+![Mac Hotspot Proxy Toggle status icons](docs/assets/mac-hotspot-proxy-toggle-status-icons.svg)
 
 The menu bar item is icon-only by default. It follows macOS template icon behavior, so state is expressed with alpha and knockout shapes instead of fixed colors.
 
@@ -92,7 +92,7 @@ The menu bar item is icon-only by default. It follows macOS template icon behavi
 | Outline phone | Non-hotspot or idle |
 | Filled phone with slash | Hotspot detected, but proxy is unavailable |
 
-See [docs/UI.md](docs/UI.md) for menu bar, `MHP.app`, notification, and Settings behavior.
+See [docs/UI.md](docs/UI.md) for menu bar, `Mac Hotspot Proxy Toggle.app`, notification, and Settings behavior.
 
 ## Check
 

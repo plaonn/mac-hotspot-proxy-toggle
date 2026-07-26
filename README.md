@@ -3,7 +3,7 @@
 [English](README.en.md) | 한국어
 
 <p>
-  <img src="docs/assets/mhp-app-icon.svg" width="96" alt="Mac Hotspot Proxy Toggle app icon">
+  <img src="docs/assets/mac-hotspot-proxy-toggle-app-icon.svg" width="96" alt="Mac Hotspot Proxy Toggle app icon">
 </p>
 
 일치하는 휴대폰 핫스팟과 프록시 endpoint가 있을 때만 macOS 프록시 설정을 켜는 작은 macOS 유틸리티입니다.
@@ -46,7 +46,7 @@ cd mac-hotspot-proxy-toggle
 PROXY_PORT=1080 HOTSPOT_SSID='My Phone Hotspot' ./install.sh
 ```
 
-Source install은 `~/Applications/MHP.app`도 설치합니다. `MHP.app`을 실행한 뒤 메뉴바에서 `Settings...`를 열면 `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, `Start Automatically`를 GUI로 설정할 수 있습니다.
+Source install은 `~/Applications/Mac Hotspot Proxy Toggle.app`도 설치합니다. `Mac Hotspot Proxy Toggle.app`을 실행한 뒤 메뉴바에서 `Settings...`를 열면 `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, `Start Automatically`를 GUI로 설정할 수 있습니다.
 
 메뉴바 아이콘을 로그인 시 자동으로 띄우려면:
 
@@ -82,7 +82,7 @@ REQUIRE_PROXY_CHECK=1
 
 ## 상태 아이콘
 
-![Mac Hotspot Proxy Toggle status icons](docs/assets/mhp-status-icons.svg)
+![Mac Hotspot Proxy Toggle status icons](docs/assets/mac-hotspot-proxy-toggle-status-icons.svg)
 
 Menu bar item은 기본적으로 아이콘만 표시합니다. macOS template icon 규칙에 맞춰 색상 대신 alpha와 knockout shape으로 상태를 구분합니다.
 
@@ -92,7 +92,7 @@ Menu bar item은 기본적으로 아이콘만 표시합니다. macOS template ic
 | 외곽선 휴대폰 | 현재 Wi-Fi가 설정한 핫스팟이 아니거나 대기 중입니다. |
 | 대각선이 있는 채워진 휴대폰 | 핫스팟은 감지됐지만 프록시를 사용할 수 없습니다. |
 
-Menu bar, `MHP.app`, notification, Settings 동작은 [docs/UI.md](docs/UI.md)에 있습니다.
+Menu bar, `Mac Hotspot Proxy Toggle.app`, notification, Settings 동작은 [docs/UI.md](docs/UI.md)에 있습니다.
 
 ## 확인
 

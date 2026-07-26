@@ -44,11 +44,11 @@ Menu bar companion:
 .build/hotspot-proxy-toggle-menu --command ./bin/hotspot-proxy-toggle
 ```
 
-`MHP.app` bundle:
+`Mac Hotspot Proxy Toggle.app` bundle:
 
 ```bash
 ./scripts/build-app.sh
-open .build/MHP.app
+open ".build/Mac Hotspot Proxy Toggle.app"
 ```
 
 패키지 매니저용 prefix 설치는 사용자 config나 LaunchAgent를 생성하지 않고 실행 파일, helper, app bundle, 예시 config만 설치합니다.

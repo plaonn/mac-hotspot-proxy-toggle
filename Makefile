@@ -7,7 +7,8 @@ ETCDIR ?= $(PREFIX)/etc
 HELPER_BUILD_DIR ?= .build
 HELPER_BIN := $(HELPER_BUILD_DIR)/hotspot-proxy-toggle-helper
 MENU_BAR_BIN := $(HELPER_BUILD_DIR)/hotspot-proxy-toggle-menu
-APP_BUNDLE := $(HELPER_BUILD_DIR)/MHP.app
+APP_BUNDLE_NAME := Mac Hotspot Proxy Toggle.app
+APP_BUNDLE := $(HELPER_BUILD_DIR)/$(APP_BUNDLE_NAME)
 
 INSTALL ?= /usr/bin/install
 CP_R ?= /bin/cp -R
@@ -32,15 +33,15 @@ install: build-helper build-menu-bar build-app
 	$(INSTALL) -m 755 "bin/hotspot-proxy-toggle" "$(DESTDIR)$(BINDIR)/hotspot-proxy-toggle"
 	$(INSTALL) -m 755 "$(HELPER_BIN)" "$(DESTDIR)$(LIBEXECDIR)/hotspot-proxy-toggle-helper"
 	$(INSTALL) -m 755 "$(MENU_BAR_BIN)" "$(DESTDIR)$(LIBEXECDIR)/hotspot-proxy-toggle-menu"
-	$(RM) -rf "$(DESTDIR)$(LIBEXECDIR)/MHP.app"
-	$(CP_R) "$(APP_BUNDLE)" "$(DESTDIR)$(LIBEXECDIR)/MHP.app"
+	$(RM) -rf "$(DESTDIR)$(LIBEXECDIR)/$(APP_BUNDLE_NAME)"
+	$(CP_R) "$(APP_BUNDLE)" "$(DESTDIR)$(LIBEXECDIR)/$(APP_BUNDLE_NAME)"
 	$(INSTALL) -m 644 "config.example" "$(DESTDIR)$(ETCDIR)/hotspot-proxy-toggle.conf.example"
 
 uninstall:
 	$(RM) -f "$(DESTDIR)$(BINDIR)/hotspot-proxy-toggle"
 	$(RM) -f "$(DESTDIR)$(LIBEXECDIR)/hotspot-proxy-toggle-helper"
 	$(RM) -f "$(DESTDIR)$(LIBEXECDIR)/hotspot-proxy-toggle-menu"
-	$(RM) -rf "$(DESTDIR)$(LIBEXECDIR)/MHP.app"
+	$(RM) -rf "$(DESTDIR)$(LIBEXECDIR)/$(APP_BUNDLE_NAME)"
 	$(RM) -f "$(DESTDIR)$(ETCDIR)/hotspot-proxy-toggle.conf.example"
 
 test:

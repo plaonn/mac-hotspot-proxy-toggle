@@ -48,6 +48,8 @@ PROXY_PORT=1080 HOTSPOT_SSID='My Phone Hotspot' ./install.sh
 
 Source install also installs `~/Applications/Mac Hotspot Proxy Toggle.app`. Launch `Mac Hotspot Proxy Toggle.app`, then open `Settings...` from the menu bar to configure `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, and `Start Automatically` in the GUI.
 
+macOS protects the current Wi-Fi SSID as location-related information. Mac Hotspot Proxy Toggle requests Location permission only to compare the current Wi-Fi name with the configured hotspot; it does not collect your physical location or coordinates. If permission is denied, automatic SSID detection does not work. See [Apple's Wi-Fi network information documentation](https://developer.apple.com/documentation/SystemConfiguration/CNCopyCurrentNetworkInfo) for details.
+
 Start the menu bar icon automatically at login:
 
 ```bash

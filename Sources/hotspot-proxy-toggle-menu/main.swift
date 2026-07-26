@@ -1138,6 +1138,9 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     )
     private var timer: Timer?
     private var isRefreshing = false
+    private let stateWatcherQueue = DispatchQueue(
+        label: "com.github.plaonn.hotspot-proxy-toggle.menu.state-watcher"
+    )
     private var stateWatcher: DispatchSourceFileSystemObject?
     private var stateDirectoryWatcher: DispatchSourceFileSystemObject?
     private var settingsWindowController: SettingsWindowController?
@@ -1371,11 +1374,15 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     }
 
     private func startStateWatchers() {
-        watchStateDirectory()
-        watchStateFile()
+        stateWatcherQueue.sync {
+            watchStateDirectory()
+            watchStateFile()
+        }
     }
 
     private func watchStateDirectory() {
+        dispatchPrecondition(condition: .onQueue(stateWatcherQueue))
+
         let directory = (config.statePath as NSString).deletingLastPathComponent
         try? FileManager.default.createDirectory(
             atPath: directory,
@@ -1390,7 +1397,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd,
             eventMask: [.write, .rename, .delete],
-            queue: DispatchQueue.global(qos: .utility)
+            queue: stateWatcherQueue
         )
         source.setEventHandler { [weak self] in
             self?.watchStateFile()
@@ -1404,6 +1411,8 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     }
 
     private func watchStateFile() {
+        dispatchPrecondition(condition: .onQueue(stateWatcherQueue))
+
         stateWatcher?.cancel()
         stateWatcher = nil
 
@@ -1419,7 +1428,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd,
             eventMask: [.write, .rename, .delete],
-            queue: DispatchQueue.global(qos: .utility)
+            queue: stateWatcherQueue
         )
         source.setEventHandler { [weak self] in
             self?.watchStateFile()

@@ -16,6 +16,7 @@ HELPER_PLIST_PATH="$HOME/Library/LaunchAgents/$HELPER_LABEL.plist"
 MENU_BAR_PLIST_PATH="$HOME/Library/LaunchAgents/$MENU_BAR_LABEL.plist"
 LOG_DIR="$HOME/Library/Logs"
 UI_STATE_PATH="${HOTSPOT_PROXY_UI_STATE:-$HOME/Library/Application Support/hotspot-proxy-toggle/status.json}"
+SSID_CACHE_PATH="${HOTSPOT_PROXY_SSID_CACHE:-$HOME/Library/Application Support/hotspot-proxy-toggle/wifi-identity.json}"
 APP_NAME="Mac Hotspot Proxy Toggle"
 CHECK_INTERVAL_SECONDS="${CHECK_INTERVAL_SECONDS:-60}"
 HOTSPOT_TRIGGER_MODE="${HOTSPOT_TRIGGER_MODE:-}"
@@ -115,7 +116,7 @@ write_polling_launch_agent() {
 }
 
 write_helper_launch_agent() {
-  local escaped_helper escaped_bin escaped_log_dir
+  local escaped_helper escaped_bin escaped_log_dir escaped_identity
   local escaped_debounce escaped_max_runs escaped_window escaped_watchdog
 
   /bin/mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
@@ -123,6 +124,7 @@ write_helper_launch_agent() {
   escaped_helper="$(escape_sed_replacement "$HELPER_BIN")"
   escaped_bin="$(escape_sed_replacement "$INSTALL_BIN")"
   escaped_log_dir="$(escape_sed_replacement "$LOG_DIR")"
+  escaped_identity="$(escape_sed_replacement "$SSID_CACHE_PATH")"
   escaped_debounce="$(escape_sed_replacement "$HELPER_DEBOUNCE_SECONDS")"
   escaped_max_runs="$(escape_sed_replacement "$HELPER_MAX_RUNS")"
   escaped_window="$(escape_sed_replacement "$HELPER_WINDOW_SECONDS")"
@@ -131,6 +133,7 @@ write_helper_launch_agent() {
   /usr/bin/sed \
     -e "s|__HELPER_BIN__|$escaped_helper|g" \
     -e "s|__INSTALL_BIN__|$escaped_bin|g" \
+    -e "s|__SSID_CACHE_PATH__|$escaped_identity|g" \
     -e "s|__LOG_DIR__|$escaped_log_dir|g" \
     -e "s|__HELPER_DEBOUNCE_SECONDS__|$escaped_debounce|g" \
     -e "s|__HELPER_MAX_RUNS__|$escaped_max_runs|g" \

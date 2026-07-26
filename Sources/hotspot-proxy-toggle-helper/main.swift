@@ -1,9 +1,11 @@
 import Dispatch
+import Darwin
 import Foundation
 import SystemConfiguration
 
 struct HelperConfig {
     var command = "hotspot-proxy-toggle"
+    var identityPath = defaultIdentityPath()
     var debounceSeconds = 1.0
     var maxRuns = 3
     var windowSeconds = 10.0
@@ -30,6 +32,12 @@ struct HelperConfig {
                     throw UsageError("invalid value for --debounce")
                 }
                 config.debounceSeconds = value
+            case "--identity":
+                index += 1
+                guard index < arguments.count else {
+                    throw UsageError("missing value for --identity")
+                }
+                config.identityPath = arguments[index]
             case "--max-runs":
                 index += 1
                 guard index < arguments.count, let value = Int(arguments[index]), value > 0 else {
@@ -102,6 +110,9 @@ final class EventHelper {
     private var pendingAfterRun = false
     private var recentRuns: [Date] = []
     private var watchdogTimer: DispatchSourceTimer?
+    private var identitySnapshot: Data?
+    private var identityFileWatcher: DispatchSourceFileSystemObject?
+    private var identityDirectoryWatcher: DispatchSourceFileSystemObject?
 
     init(config: HelperConfig) {
         self.config = config
@@ -158,6 +169,7 @@ final class EventHelper {
         log("started helper; command=\(config.command) dry_run=\(config.dryRun) watchdog=\(config.watchdogSeconds)")
 
         queue.async {
+            self.startIdentityWatcher()
             self.scheduleRun(reason: "startup")
         }
 
@@ -170,6 +182,94 @@ final class EventHelper {
             self.log("network change: \(summary)")
             self.scheduleRun(reason: "network-change")
         }
+    }
+
+    private func startIdentityWatcher() {
+        dispatchPrecondition(condition: .onQueue(queue))
+
+        let directory = (config.identityPath as NSString).deletingLastPathComponent
+        do {
+            try FileManager.default.createDirectory(
+                atPath: directory,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
+        } catch {
+            log("failed to create identity directory: \(error)")
+            return
+        }
+
+        identitySnapshot = readIdentitySnapshot()
+        watchIdentityDirectory(directory)
+        watchIdentityFile()
+    }
+
+    private func watchIdentityDirectory(_ directory: String) {
+        dispatchPrecondition(condition: .onQueue(queue))
+
+        let fd = open(directory, O_EVTONLY)
+        guard fd >= 0 else {
+            log("failed to watch identity directory")
+            return
+        }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: [.write, .rename, .delete],
+            queue: queue
+        )
+        source.setEventHandler { [weak self] in
+            self?.refreshIdentityWatcher()
+        }
+        source.setCancelHandler {
+            close(fd)
+        }
+        identityDirectoryWatcher = source
+        source.resume()
+    }
+
+    private func watchIdentityFile() {
+        dispatchPrecondition(condition: .onQueue(queue))
+
+        identityFileWatcher?.cancel()
+        identityFileWatcher = nil
+
+        let fd = open(config.identityPath, O_EVTONLY)
+        guard fd >= 0 else {
+            return
+        }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: [.write, .rename, .delete],
+            queue: queue
+        )
+        source.setEventHandler { [weak self] in
+            self?.refreshIdentityWatcher()
+        }
+        source.setCancelHandler {
+            close(fd)
+        }
+        identityFileWatcher = source
+        source.resume()
+    }
+
+    private func refreshIdentityWatcher() {
+        dispatchPrecondition(condition: .onQueue(queue))
+
+        let nextSnapshot = readIdentitySnapshot()
+        let changed = nextSnapshot != identitySnapshot
+        identitySnapshot = nextSnapshot
+        watchIdentityFile()
+
+        if changed {
+            log("identity cache changed")
+            scheduleRun(reason: "identity-change")
+        }
+    }
+
+    private func readIdentitySnapshot() -> Data? {
+        try? Data(contentsOf: URL(fileURLWithPath: config.identityPath))
     }
 
     private func scheduleRun(reason: String) {
@@ -319,6 +419,7 @@ func printUsage() {
 
         Options:
           --command PATH     Command to invoke with the 'run' argument.
+          --identity PATH    Wi-Fi identity cache to observe.
           --debounce SECS    Debounce window before running. Default: 1.
           --max-runs N       Maximum runs in the throttle window. Default: 3.
           --window SECS      Throttle window. Default: 10.
@@ -328,6 +429,10 @@ func printUsage() {
           -h, --help         Show this help.
         """
     )
+}
+
+func defaultIdentityPath() -> String {
+    "\(FileManager.default.homeDirectoryForCurrentUser.path)/Library/Application Support/hotspot-proxy-toggle/wifi-identity.json"
 }
 
 do {

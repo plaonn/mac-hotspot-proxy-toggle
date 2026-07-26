@@ -9,6 +9,8 @@
     <string>__HELPER_BIN__</string>
     <string>--command</string>
     <string>__INSTALL_BIN__</string>
+    <string>--identity</string>
+    <string>__SSID_CACHE_PATH__</string>
     <string>--debounce</string>
     <string>__HELPER_DEBOUNCE_SECONDS__</string>
     <string>--max-runs</string>

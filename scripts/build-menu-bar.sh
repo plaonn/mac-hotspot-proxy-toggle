@@ -39,11 +39,13 @@ fi
 
 swiftc \
   -suppress-warnings \
+  "$ROOT_DIR/Sources/NotificationPresentation.swift" \
   "$ROOT_DIR/Sources/hotspot-proxy-toggle-menu/main.swift" \
   "$GENERATED_VERSION" \
   -framework AppKit \
   -framework CoreLocation \
   -framework CoreWLAN \
+  -framework UserNotifications \
   -o "$OUTPUT"
 
 printf '%s\n' "$OUTPUT"

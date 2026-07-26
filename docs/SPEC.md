@@ -34,6 +34,7 @@ Runtime command는 파일 설치, LaunchAgent 생성, persistent loop 실행을 
 helper는 아래 역할만 함:
 
 - SystemConfiguration dynamic store network change notification을 관찰함.
+- connection-bound Wi-Fi identity cache 변경을 관찰함.
 - event burst를 debounce함.
 - child process로 기존 `hotspot-proxy-toggle run`을 호출함.
 - `run` 출력이 hotspot 상태를 나타내면 endpoint watchdog timer를 켬.
@@ -41,7 +42,7 @@ helper는 아래 역할만 함:
 - `--dry-run`이면 child command에 `DRY_RUN=1`을 전달함.
 - `--once`이면 event loop 없이 child command를 한 번 실행하고 종료함.
 
-helper는 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음. Hotspot 여부도 별도로 재판정하지 않고 `hotspot-proxy-toggle run`의 status output을 사용함.
+Network event와 identity cache event는 같은 serial scheduler로 들어감. Identity file과 같은 directory의 다른 state file 변경은 identity 내용이 실제로 바뀌지 않으면 reconcile trigger가 아님. helper는 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음. Hotspot 여부도 별도로 재판정하지 않고 `hotspot-proxy-toggle run`의 status output을 사용함.
 
 설치 기본값은 event-driven helper LaunchAgent임. helper build 또는 helper LaunchAgent 설치가 실패하면 `install.sh`는 polling LaunchAgent로 fallback함. `HOTSPOT_TRIGGER_MODE=polling`을 명시하면 polling LaunchAgent를 강제로 설치함.
 
@@ -57,6 +58,7 @@ Companion은 아래 역할만 함:
 - 사용자가 menu에서 `Reconcile Now`를 선택하면 `hotspot-proxy-toggle run`을 한 번 호출함.
 - `Refresh Status`는 proxy setting을 변경하지 않고 `status`만 다시 호출함.
 - `Settings...`는 필수 설정, 언어, 자동 시작을 관리하는 Settings window를 엶.
+- 위치 권한 아래에서 connection-bound Wi-Fi identity cache를 갱신함. Cache 변경에 따른 자동 reconciliation은 helper 또는 polling LaunchAgent가 소유함.
 - `Quit Mac Hotspot Proxy Toggle`은 `hotspot-proxy-toggle off`를 호출해 proxy setting을 끄고, helper LaunchAgent와 menu LaunchAgent를 unload함.
 
 Companion은 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음. Primary 상태 표시는 UI state JSON에서 파생함. Fallback 상태 표시는 `status=hotspot`, `status=not-hotspot`, `status=not-wifi`, `status=no-router`, `proxy_check=...-missing` 같은 runtime command output에서 파생함.
@@ -238,7 +240,7 @@ macOS proxy setting을 켜기 전에 아래 응답을 요구함:
 
 ## Notification
 
-Notification은 runtime command의 부가 출력 경로임. `bin/hotspot-proxy-toggle run`은 `NOTIFY_ON_CHANGE=1`일 때 설치된 `Mac Hotspot Proxy Toggle.app/Contents/MacOS/hotspot-proxy-toggle-menu --notify`를 우선 호출해 최종 proxy state를 표시함. App sender를 사용할 수 없거나 실패하면 macOS `/usr/bin/osascript`의 `display notification`으로 fallback함.
+Notification은 runtime command의 부가 출력 경로임. `bin/hotspot-proxy-toggle run`은 `NOTIFY_ON_CHANGE=1`일 때 설치된 `Mac Hotspot Proxy Toggle.app/Contents/MacOS/hotspot-proxy-toggle-menu --notify`를 우선 호출해 최종 proxy state를 표시함. App sender는 UserNotifications authorization과 request submission을 확인하고 foreground에서도 banner/list presentation을 허용함. App sender를 사용할 수 없거나 authorization 또는 request submission이 실패하면 macOS `/usr/bin/osascript`의 `display notification`으로 fallback함.
 
 Notification은 아래 원칙을 따름:
 
@@ -273,6 +275,8 @@ event helper 설치가 가능하면 기본값으로 아래 helper 파일과 help
 ```
 
 helper LaunchAgent는 `hotspot-proxy-toggle-helper --command <installed-command>`를 실행함. helper는 시작 시 한 번 reconcile하고, 이후 SystemConfiguration network change event를 debounce해서 `hotspot-proxy-toggle run`을 호출함. Hotspot 상태에서는 endpoint watchdog이 낮은 빈도로 `hotspot-proxy-toggle run`을 다시 호출해 프록시 서버 on/off 변화를 보정함. Hotspot이 아니면 watchdog은 꺼짐.
+
+Helper LaunchAgent는 `--identity`로 connection-bound Wi-Fi identity cache path도 전달함. Menu app이 redacted SSID를 복구해 cache를 atomic replace하면 helper가 이를 event로 받아 같은 reconcile scheduler를 실행함. 이 run이 hotspot 상태를 확인하면 endpoint가 아직 unavailable이어도 watchdog이 활성화되므로, 이후 휴대폰 proxy server만 켜지는 변화도 새 network event 없이 수렴함.
 
 event helper tuning key:
 

@@ -3,6 +3,7 @@ import CoreLocation
 import CoreWLAN
 import Darwin
 import Foundation
+import UserNotifications
 
 struct MenuConfig {
     var command = defaultCommandPath()
@@ -377,10 +378,8 @@ private struct WiFiIdentity: Codable, Equatable {
 private final class WiFiIdentityBroker: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     private let cachePath = defaultWiFiIdentityPath()
-    private let onIdentityChange: () -> Void
 
-    init(onIdentityChange: @escaping () -> Void) {
-        self.onIdentityChange = onIdentityChange
+    override init() {
         super.init()
         manager.delegate = self
     }
@@ -434,7 +433,6 @@ private final class WiFiIdentityBroker: NSObject, CLLocationManagerDelegate {
             let data = try JSONEncoder().encode(identity)
             try data.write(to: URL(fileURLWithPath: cachePath), options: .atomic)
             _ = chmod(cachePath, S_IRUSR | S_IWUSR)
-            onIdentityChange()
         } catch {
             removeCache()
         }
@@ -554,6 +552,10 @@ final class DotenvConfig {
             proxyCheckTimeout: values["PROXY_CHECK_TIMEOUT"] ?? "3",
             helperWatchdogSeconds: values["HELPER_WATCHDOG_SECONDS"] ?? "60"
         )
+    }
+
+    var notificationsEnabled: Bool {
+        values["NOTIFY_ON_CHANGE"] == "1"
     }
 
     func set(_ key: String, _ value: String) {
@@ -737,6 +739,8 @@ final class AutomationController {
             <string>\(xmlEscape(helper))</string>
             <string>--command</string>
             <string>\(xmlEscape(command))</string>
+            <string>--identity</string>
+            <string>\(xmlEscape(defaultWiFiIdentityPath()))</string>
             <string>--debounce</string>
             <string>1</string>
             <string>--max-runs</string>
@@ -1144,9 +1148,8 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     private var stateWatcher: DispatchSourceFileSystemObject?
     private var stateDirectoryWatcher: DispatchSourceFileSystemObject?
     private var settingsWindowController: SettingsWindowController?
-    private lazy var wifiIdentityBroker = WiFiIdentityBroker { [weak self] in
-        self?.reconcileAfterWiFiIdentityChange()
-    }
+    private let notificationPresenter = NotificationPresenter()
+    private lazy var wifiIdentityBroker = WiFiIdentityBroker()
 
     init(config: MenuConfig) {
         self.config = config
@@ -1155,6 +1158,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        configureNotifications()
         configureStatusItem()
         ensureAutomationAgentLoaded()
         wifiIdentityBroker.start()
@@ -1273,14 +1277,6 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
             return
         }
         refreshStatus()
-    }
-
-    private func reconcileAfterWiFiIdentityChange() {
-        runCommand(argument: "run") { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.refreshStatus()
-            }
-        }
     }
 
     @discardableResult
@@ -1466,6 +1462,22 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func configureNotifications() {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = notificationPresenter
+
+        guard DotenvConfig.load(path: config.configPath).notificationsEnabled else {
+            return
+        }
+
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .notDetermined else {
+                return
+            }
+            center.requestAuthorization(options: [.alert]) { _, _ in }
+        }
+    }
+
     private func launchAgentIsLoaded(label: String) -> Bool {
         runLaunchctl(arguments: ["print", "gui/\(getuid())/\(label)"]) == 0
     }
@@ -1586,7 +1598,9 @@ func printUsage() {
 do {
     if CommandLine.arguments.dropFirst().first == "--notify" {
         let config = try NotificationConfig.parse(CommandLine.arguments)
-        sendBundledNotification(title: config.title, body: config.body)
+        if !sendBundledNotification(title: config.title, body: config.body) {
+            exit(1)
+        }
     } else {
         guard let instanceLockFD = acquireSingleInstanceLock() else {
             exit(0)
@@ -1606,12 +1620,4 @@ do {
 } catch {
     fputs("error: \(error)\n", stderr)
     exit(1)
-}
-
-func sendBundledNotification(title: String, body: String) {
-    let notification = NSUserNotification()
-    notification.title = title
-    notification.informativeText = body
-    NSUserNotificationCenter.default.deliver(notification)
-    RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.5))
 }

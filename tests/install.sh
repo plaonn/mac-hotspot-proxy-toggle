@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC1091,SC2034
+# shellcheck disable=SC1091,SC2016,SC2034
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(/usr/bin/dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -264,6 +264,18 @@ unsupported_trigger_mode_is_rejected() {
     [[ "${EVENTS[*]-}" == "" ]]
 }
 
+helper_launch_agent_binds_identity_cache() {
+  local template install_source
+
+  template="$(<"$ROOT_DIR/launchd/$HELPER_LABEL.plist.in")"
+  install_source="$(<"$ROOT_DIR/install.sh")"
+
+  assert_contains "$template" "<string>--identity</string>" &&
+    assert_contains "$template" "<string>__SSID_CACHE_PATH__</string>" &&
+    assert_contains "$install_source" 'SSID_CACHE_PATH="${HOTSPOT_PROXY_SSID_CACHE:-' &&
+    assert_contains "$install_source" 's|__SSID_CACHE_PATH__|$escaped_identity|g'
+}
+
 run_test "default install uses event helper" default_install_uses_event_helper
 run_test "menu bar opt-in installs companion" menu_bar_opt_in_installs_companion
 run_test "app build failure keeps core install" app_build_failure_keeps_core_install
@@ -273,6 +285,7 @@ run_test "event plist failure falls back to polling" event_plist_failure_falls_b
 run_test "event launchctl failure falls back to polling" event_launchctl_failure_falls_back_to_polling
 run_test "explicit polling skips event helper" explicit_polling_skips_event_helper
 run_test "unsupported trigger mode is rejected" unsupported_trigger_mode_is_rejected
+run_test "helper launch agent binds identity cache" helper_launch_agent_binds_identity_cache
 
 printf '\n%s passed, %s failed\n' "$PASS_COUNT" "$FAIL_COUNT"
 [[ "$FAIL_COUNT" == "0" ]]

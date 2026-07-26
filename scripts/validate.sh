@@ -11,6 +11,8 @@ scripts=(
   "uninstall.sh"
   "tests/run.sh"
   "tests/install.sh"
+  "tests/helper.sh"
+  "tests/notification.sh"
   "scripts/validate.sh"
   "scripts/build-helper.sh"
   "scripts/build-menu-bar.sh"
@@ -39,14 +41,20 @@ fi
 if command -v swiftc >/dev/null 2>&1; then
   printf '\n==> helper build\n'
   ./scripts/build-helper.sh >/dev/null
+  printf '\n==> helper lifecycle tests\n'
+  ./tests/helper.sh
 else
   printf '\n==> helper build\n'
+  printf 'skipped: swiftc not found\n'
+  printf '\n==> helper lifecycle tests\n'
   printf 'skipped: swiftc not found\n'
 fi
 
 if command -v swiftc >/dev/null 2>&1 && [[ -d /System/Library/Frameworks/AppKit.framework ]]; then
   printf '\n==> menu bar build\n'
   ./scripts/build-menu-bar.sh >/dev/null
+  printf '\n==> notification presentation tests\n'
+  ./tests/notification.sh
   printf '\n==> app bundle build\n'
   ./scripts/build-app.sh >/dev/null
 else

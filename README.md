@@ -6,28 +6,38 @@
   <img src="docs/assets/mac-hotspot-proxy-toggle-app-icon.svg" width="96" alt="Mac Hotspot Proxy Toggle app icon">
 </p>
 
-일치하는 휴대폰 핫스팟과 프록시 endpoint가 있을 때만 macOS 프록시 설정을 켜는 작은 macOS 유틸리티입니다.
+**휴대폰 핫스팟에 연결하면 Mac이 휴대폰의 프록시를 사용하고, 핫스팟을 떠나면 기존 프록시 설정으로 돌아갑니다.** 휴대폰에서 SOCKS5 또는 HTTP 프록시 서버를 실행하는 사람을 위한 macOS 메뉴바 유틸리티입니다.
 
-## 무엇을 해결하나요?
+macOS는 프록시 설정을 Wi-Fi 서비스 전체에 적용합니다. 그래서 핫스팟에서 켠 프록시가 집이나 회사 Wi-Fi에서도 남을 수 있습니다. 이 앱에 핫스팟 이름과 프록시 종류·포트를 한 번 입력하면, 연결할 때마다 현재 라우터 주소를 찾아 프록시가 응답하는지 확인합니다.
 
-macOS 프록시 설정은 Wi-Fi SSID별이 아니라 `Wi-Fi` 같은 network service 단위로 적용됩니다. 휴대폰 핫스팟은 연결할 때마다 라우터 IP가 바뀔 수도 있습니다.
+| 이런 상황에서 | Mac이 하는 일 |
+| --- | --- |
+| 같은 핫스팟에 다시 연결했는데 주소가 바뀌었을 때 | 새 주소로 프록시를 확인하고 Mac에 적용합니다. |
+| 핫스팟에 먼저 연결하고 휴대폰 서버를 나중에 켰을 때 | 기본 60초 간격으로 다시 확인합니다. 메뉴에서 **지금 다시 연결**을 누르면 바로 시도합니다. |
+| 집이나 회사 Wi-Fi로 돌아왔을 때 | 앱이 변경한 프록시 설정을 복원합니다. 사용자가 중간에 직접 바꾼 항목은 유지합니다. |
 
-Mac Hotspot Proxy Toggle은 현재 네트워크 상태를 한 번 확인하고, 아래 조건이 맞을 때만 macOS 프록시를 켭니다.
+메뉴를 열면 Mac에 설정이 적용됐는지, 응답을 기다리는 중인지, 서버가 인증을 요구하는지 확인할 수 있습니다. 휴대폰에는 인증 없이 접속할 수 있는 프록시 서버가 준비되어 있어야 합니다.
 
-1. 기본 route가 Wi-Fi입니다.
-2. 현재 Wi-Fi SSID가 설정한 `HOTSPOT_SSID`와 정확히 일치합니다.
-3. 현재 핫스팟 라우터 IP의 `PROXY_PORT`에서 proxy endpoint가 응답합니다.
-
-휴대폰 프록시를 나중에 켜도 같은 핫스팟에서 자동으로 다시 확인합니다(기본 60초). 대기 중 메뉴의 **지금 다시 연결**을 누르면 즉시 시도합니다. 핫스팟을 떠나거나 앱을 종료하면 앱이 바꾼 프록시 설정을 복원합니다. 현재 backend는 `socks5`와 `http`를 지원합니다.
+![휴대폰 프록시 응답을 기다리는 메뉴바 앱. 자동 재시도 안내와 지금 다시 연결 메뉴가 보입니다.](docs/assets/mac-hotspot-proxy-toggle-menu-preview.svg)
 
 ## 빠른 설치
 
-### Homebrew
+### 메뉴바 앱으로 사용하기
+
+```bash
+git clone https://github.com/plaonn/mac-hotspot-proxy-toggle.git
+cd mac-hotspot-proxy-toggle
+HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
+```
+
+메뉴바에서 **설정…**을 열고 휴대폰의 **핫스팟 이름 (SSID)**, **프록시 유형**, **프록시 포트**를 저장합니다. 위 명령의 `1080`은 예시이므로 서버가 사용하는 포트로 바꿀 수 있습니다. macOS가 Wi-Fi 이름을 숨기는 환경에서는 앱에 위치 권한을 허용해야 이름을 읽을 수 있습니다. 앱은 위치 좌표를 수집하지 않습니다.
+
+### Homebrew로 백그라운드에서 사용하기
 
 ```bash
 brew install plaonn/tap/hotspot-proxy-toggle
 mkdir -p ~/.config
-cp "$(brew --prefix)/etc/hotspot-proxy-toggle.conf.example" ~/.config/hotspot-proxy-toggle.conf
+cp -n "$(brew --prefix)/etc/hotspot-proxy-toggle.conf.example" ~/.config/hotspot-proxy-toggle.conf
 ${EDITOR:-vi} ~/.config/hotspot-proxy-toggle.conf
 brew services start plaonn/tap/hotspot-proxy-toggle
 ```
@@ -36,24 +46,6 @@ brew services start plaonn/tap/hotspot-proxy-toggle
 
 ```bash
 hotspot-proxy-toggle run
-```
-
-### Source
-
-```bash
-git clone https://github.com/plaonn/mac-hotspot-proxy-toggle.git
-cd mac-hotspot-proxy-toggle
-PROXY_PORT=1080 HOTSPOT_SSID='My Phone Hotspot' ./install.sh
-```
-
-Source install은 `~/Applications/Mac Hotspot Proxy Toggle.app`도 설치합니다. `Mac Hotspot Proxy Toggle.app`을 실행한 뒤 메뉴바에서 `설정…`를 열면 `핫스팟 이름 (SSID)`, `프록시 유형`, `프록시 포트`, `언어`, `로그인 시 자동 시작`을 GUI로 설정할 수 있습니다.
-
-macOS는 현재 Wi-Fi SSID를 위치 관련 정보로 보호합니다. Mac Hotspot Proxy Toggle은 설정한 핫스팟과 현재 Wi-Fi 이름을 비교하기 위해 위치 권한을 요청하지만, 실제 위치나 좌표는 수집하지 않습니다. 권한을 거부하면 SSID 자동 인식이 동작하지 않습니다. 자세한 내용은 [Apple의 Wi-Fi network information 문서](https://developer.apple.com/documentation/SystemConfiguration/CNCopyCurrentNetworkInfo)를 참고하세요.
-
-메뉴바 아이콘을 로그인 시 자동으로 띄우려면:
-
-```bash
-HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 HOTSPOT_SSID='My Phone Hotspot' ./install.sh
 ```
 
 자세한 설치 옵션은 [docs/INSTALL.md](docs/INSTALL.md)에 있습니다.

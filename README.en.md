@@ -6,28 +6,38 @@
   <img src="docs/assets/mac-hotspot-proxy-toggle-app-icon.svg" width="96" alt="Mac Hotspot Proxy Toggle app icon">
 </p>
 
-A small macOS utility that turns system proxy settings on only when the current Wi-Fi exactly matches a configured phone hotspot SSID and the proxy endpoint is available.
+**Connect to your phone’s hotspot and your Mac uses the phone’s proxy. Leave the hotspot and your previous proxy settings are restored.** Mac Hotspot Proxy Toggle is a menu bar utility for people who run a SOCKS5 or HTTP proxy server on their phone.
 
-## Why
+macOS applies proxy settings to the entire Wi-Fi service, so a proxy you enable on a hotspot can stay enabled at home or at work. Set the hotspot name, proxy type, and port once. The app finds the current router address and checks the proxy each time you connect.
 
-macOS proxy settings are scoped to a network service such as `Wi-Fi`, not to each Wi-Fi SSID. Phone hotspot router IPs can also change between connections.
+| When | What happens on the Mac |
+| --- | --- |
+| Your hotspot has a new router address | The app checks the proxy at the new address and applies it. |
+| You start the phone’s proxy after joining the hotspot | The app retries every 60 seconds by default. Choose **Reconnect Now** to try immediately. |
+| You return to home or office Wi-Fi | The app restores the settings it changed and preserves any settings you edited yourself. |
 
-Mac Hotspot Proxy Toggle reconciles the current state:
+Open the menu to see whether the proxy settings were applied, the response timed out, or the server requires authentication. The phone must run a proxy that accepts connections without authentication.
 
-1. The default route is Wi-Fi.
-2. The current Wi-Fi SSID exactly matches the configured `HOTSPOT_SSID`.
-3. The proxy endpoint responds on `router:PROXY_PORT`.
-
-If the phone proxy starts later, the app retries automatically (every 60 seconds by default). Choose **Reconnect Now** while waiting to retry immediately. Leaving the hotspot or quitting restores the proxy settings managed by the app. Current backends are `socks5` and `http`.
+![The menu bar app waiting for the phone proxy, with automatic retry status and a Reconnect Now action.](docs/assets/mac-hotspot-proxy-toggle-menu-preview.svg)
 
 ## Quick Install
 
-### Homebrew
+### Use the menu bar app
+
+```bash
+git clone https://github.com/plaonn/mac-hotspot-proxy-toggle.git
+cd mac-hotspot-proxy-toggle
+HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
+```
+
+Open **Settings…** from the menu bar and save your phone’s **Hotspot Name (SSID)**, **Proxy Type**, and **Proxy Port**. Port `1080` is an example. Use the port configured on your phone. On Macs that hide the Wi-Fi name, allow Location access so the app can identify the hotspot. The app does not collect location coordinates.
+
+### Run in the background with Homebrew
 
 ```bash
 brew install plaonn/tap/hotspot-proxy-toggle
 mkdir -p ~/.config
-cp "$(brew --prefix)/etc/hotspot-proxy-toggle.conf.example" ~/.config/hotspot-proxy-toggle.conf
+cp -n "$(brew --prefix)/etc/hotspot-proxy-toggle.conf.example" ~/.config/hotspot-proxy-toggle.conf
 ${EDITOR:-vi} ~/.config/hotspot-proxy-toggle.conf
 brew services start plaonn/tap/hotspot-proxy-toggle
 ```
@@ -36,24 +46,6 @@ Run one reconciliation immediately:
 
 ```bash
 hotspot-proxy-toggle run
-```
-
-### Source
-
-```bash
-git clone https://github.com/plaonn/mac-hotspot-proxy-toggle.git
-cd mac-hotspot-proxy-toggle
-PROXY_PORT=1080 HOTSPOT_SSID='My Phone Hotspot' ./install.sh
-```
-
-Source install also installs `~/Applications/Mac Hotspot Proxy Toggle.app`. Launch `Mac Hotspot Proxy Toggle.app`, then open `Settings…` from the menu bar to configure `Hotspot Name (SSID)`, `Proxy Type`, `Proxy Port`, `Language`, and `Start at Login` in the GUI.
-
-macOS protects the current Wi-Fi SSID as location-related information. Mac Hotspot Proxy Toggle requests Location permission only to compare the current Wi-Fi name with the configured hotspot; it does not collect your physical location or coordinates. If permission is denied, automatic SSID detection does not work. See [Apple's Wi-Fi network information documentation](https://developer.apple.com/documentation/SystemConfiguration/CNCopyCurrentNetworkInfo) for details.
-
-Start the menu bar icon automatically at login:
-
-```bash
-HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 HOTSPOT_SSID='My Phone Hotspot' ./install.sh
 ```
 
 See [docs/INSTALL.md](docs/INSTALL.md) for detailed install options.

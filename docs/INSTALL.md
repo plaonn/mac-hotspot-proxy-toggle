@@ -3,6 +3,7 @@
 ## Homebrew
 
 ```bash
+brew trust --formula plaonn/tap/hotspot-proxy-toggle
 brew install plaonn/tap/hotspot-proxy-toggle
 ```
 
@@ -10,7 +11,7 @@ brew install plaonn/tap/hotspot-proxy-toggle
 
 ```bash
 mkdir -p ~/.config
-cp "$(brew --prefix)/etc/hotspot-proxy-toggle.conf.example" ~/.config/hotspot-proxy-toggle.conf
+cp -n "$(brew --prefix)/etc/hotspot-proxy-toggle.conf.example" ~/.config/hotspot-proxy-toggle.conf
 ${EDITOR:-vi} ~/.config/hotspot-proxy-toggle.conf
 ```
 

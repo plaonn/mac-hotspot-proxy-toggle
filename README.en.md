@@ -35,6 +35,7 @@ Open **Settings…** from the menu bar and save your phone’s **Hotspot Name (S
 ### Run in the background with Homebrew
 
 ```bash
+brew trust --formula plaonn/tap/hotspot-proxy-toggle
 brew install plaonn/tap/hotspot-proxy-toggle
 mkdir -p ~/.config
 cp -n "$(brew --prefix)/etc/hotspot-proxy-toggle.conf.example" ~/.config/hotspot-proxy-toggle.conf

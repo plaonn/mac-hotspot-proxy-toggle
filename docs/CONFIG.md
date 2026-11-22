@@ -55,7 +55,7 @@ LANGUAGE=auto
 Notification은 세 상태를 구분합니다.
 
 - `✅ Hotspot Proxy On`: 핫스팟 프록시를 사용 중입니다.
-- `⚠️ Hotspot Proxy Unavailable`: 핫스팟은 감지됐지만 프록시 서버가 응답하지 않습니다.
+- `⚠️ Hotspot Proxy Unavailable`: Mac에서 설정한 프록시 연결을 확인하지 못했습니다.
 - `ℹ️ Hotspot Proxy Idle`: 현재 Wi-Fi가 설정한 핫스팟이 아닙니다.
 
 Notification은 설치된 `Mac Hotspot Proxy Toggle.app` sender를 우선 사용해 App icon으로 표시되게 시도합니다. `NOTIFY_ON_CHANGE=1`인 상태로 App을 시작하면 macOS notification authorization을 요청할 수 있으며, 허용된 뒤에는 App이 foreground여도 banner와 Notification Center list에 표시합니다. App sender를 사용할 수 없거나 authorization/request submission이 실패하면 macOS `osascript` notification으로 되돌아갑니다. 상태별 custom notification icon은 사용하지 않으므로 title의 emoji는 상태 구분 보조 신호로 유지합니다.

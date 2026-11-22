@@ -4,7 +4,7 @@
 
 ## R0: 루트 목표
 
-- 요구사항: 고정된 핫스팟 라우터 IP나 수동 프록시 토글 없이, macOS 프록시 설정을 현재 휴대폰 핫스팟 context와 일치시킴.
+- 요구사항: 한 번 설정하면 사용자는 휴대폰 핫스팟을 오갈 때 프록시를 조작할 필요가 없어야 함. 기대한 연결이 이루어지지 않으면 메뉴에서 Mac이 확인한 상태와 이유를 알 수 있어야 함.
 - 근거: macOS는 프록시 설정을 network service 단위로 적용하지만, 휴대폰 핫스팟은 연결마다 라우터 IP가 바뀔 수 있음.
 - 방지 실패: 사용자가 일반 Wi-Fi에서 stale proxy를 켜 둔 채로 두거나, 휴대폰 핫스팟 라우터 IP가 바뀔 때마다 proxy host를 수동 수정해야 하는 상황을 막음.
 - 자동화 경계: 이 유틸리티는 설정된 network service의 macOS proxy setting을 변경할 수 있음. 휴대폰 설정, 휴대폰 위 proxy server 시작, credential 추론은 하지 않음.
@@ -34,8 +34,10 @@
 - 근거: 핫스팟에는 연결되어 있어도 휴대폰의 proxy server가 꺼져 있을 수 있음.
 - 방지 실패: 사용할 수 없는 system-wide proxy를 켜서 애플리케이션 네트워크 연결이 깨지는 일을 막음.
 - 명세: endpoint check는 기본 안전장치임. `PROXY_TYPE=socks5`와 `REQUIRE_PROXY_CHECK=1`일 때 `router:PROXY_PORT`로 SOCKS5 no-auth greeting을 보내고, proxy setting을 켜기 전에 `0500` 응답을 요구함. `PROXY_TYPE=http`에서는 proxy에 절대 URI 형식의 HTTP request를 보내고 `HTTP/` response line을 요구함. `407 Proxy Authentication Required`는 현재 auth 미지원이므로 실패로 처리함.
-- 테스트: endpoint가 없으면 `run`은 `status=proxy-unavailable proxy_type=... action=off`를 보고하고 macOS proxy state를 끔.
-- 자동 테스트: `./tests/run.sh`는 endpoint unavailable이면 off decision, available이면 current router로 on decision을 검증함.
+- 합격 기준은 휴대폰 서버를 뒤늦게 켜는 상황임. 같은 핫스팟에서 다음 자동 검사까지 기다리거나 메뉴의 수동 재연결을 선택하면 Mac에 현재 주소와 포트가 적용되어야 함. 두 경로 모두 적용 결과를 읽어 확인한 뒤 연결됨을 표시함.
+- 서버 응답이 나뉘어 도착해도 제한 시간 안에 프로토콜 응답이 완성되면 인식해야 함. Mac에서 확인한 인증 요구, 시간 초과, 예상 밖 응답을 구분해 전달함.
+- 핫스팟 이탈 또는 종료 뒤에는 앞서 시작한 검사로 이전 연결이 다시 켜지면 안 됨. 실행 횟수 제한 중에 받은 마지막 네트워크 변경도 처리해야 함.
+- 검증은 `tests/proxy.rb`, `tests/reconnect.rb`, `tests/helper.sh`에서 로컬 서버, 실제 helper, 격리된 설정으로 수행함. 휴대폰과 macOS 설정을 사용하는 현장 확인은 별도임.
 
 ## R4: 유지보수 가능한 자동화 경계
 
@@ -58,8 +60,9 @@
 - 요구사항: 지원하는 proxy backend는 `PROXY_TYPE`으로 명시하고, backend별 macOS proxy setting을 서로 섞지 않음.
 - 근거: SOCKS5, HTTP Web Proxy, PAC은 macOS `networksetup` command와 endpoint semantics가 다름.
 - 방지 실패: 새 proxy type을 추가하면서 SOCKS 전용 설정이나 검증을 잘못 재사용하는 일을 막음.
-- 명세: `PROXY_TYPE=socks5`는 SOCKS firewall proxy를 desired backend로 보고 Web Proxy와 Secure Web Proxy를 끔. `PROXY_TYPE=http`는 Web Proxy와 Secure Web Proxy를 desired backend로 보고 SOCKS firewall proxy를 끔. Hotspot이 아니거나 endpoint를 사용할 수 없으면 지원하는 backend 전체를 끔. 지원하지 않는 값은 supported list와 함께 거부함.
-- 테스트: `./tests/run.sh`는 `http` backend on decision, opposite backend off decision, unsupported `PROXY_TYPE` rejection을 검증함.
+- 합격 기준은 핫스팟을 떠났을 때 다른 네트워크에서 쓰던 설정으로 다시 연결되는 것임. 앱이 바꾸지 않은 설정과 사용자가 중간에 직접 변경한 값을 보존함. 원래 프록시를 사용하지 않았다면 비활성 상태로 돌아감.
+- 활성화 중에는 선택한 backend만 사용함. 각 backend의 변경 전 값과 앱의 변경 내역은 로컬에 보관함. 인증 정보를 새로 입력해야 하는 기존 주소의 교체는 중단함.
+- 반복 검사, 다른 라우터로 재연결, 프로세스 재시작, 쓰기 중단, 사용자 변경은 `tests/proxy.rb`에서 검증함.
 
 ## R7: 상태 변경 Notification
 
@@ -74,8 +77,8 @@
 - 요구사항: 사용자가 명시적으로 켠 경우, macOS menu bar status area에 Mac Hotspot Proxy Toggle 상태 항목을 표시함.
 - 근거: background helper와 notification만으로는 현재 상태를 상시 확인하거나 즉시 수동 reconcile을 실행하기 어려움.
 - 방지 실패: 상태 표시 요구를 runtime script 안의 persistent UI loop로 구현해 single-shot reconciliation 경계를 깨는 일을 막음.
-- 명세: menu bar companion은 별도 Swift binary로 제공함. `hotspot-proxy-toggle run`/`off`는 SSID, router IP, local path를 포함하지 않는 UI state JSON을 쓰고, companion은 이 파일을 watch해 상태만 표시함. UI state file이 아직 없거나 읽을 수 없을 때만 `hotspot-proxy-toggle status`를 fallback으로 호출함. menu top에는 `Mac Hotspot Proxy Toggle <version>` header를 표시함. Companion은 위치 권한 아래에서 connection-bound Wi-Fi identity cache를 갱신하며, network/identity 기반 자동 reconciliation scheduling은 helper 또는 polling LaunchAgent가 소유함. Companion이 `hotspot-proxy-toggle run`을 직접 호출하는 경로는 `Reconcile Now`와 변경된 Settings 저장처럼 명시적 user interaction으로 제한함. 상태 문구는 notification의 hotspot proxy active, hotspot-but-proxy-unavailable, active-Wi-Fi-but-not-configured-hotspot 3상태와 맞추고, not-Wi-Fi/no-router와 error를 별도 상태로 표시함. Menu bar icon은 같은 휴대폰 핫스팟 glyph의 filled, outline, filled-slash 세 형태로 hotspot+proxy on, non-hotspot, hotspot+proxy off를 구분하며 기본 status item은 icon-only로 표시함. `Quit Mac Hotspot Proxy Toggle`은 `hotspot-proxy-toggle off`로 proxy setting을 끄고 helper/menu LaunchAgent를 unload함. Companion은 hotspot/proxy decision이나 macOS proxy write policy를 재구현하지 않음. Source installer는 `HOTSPOT_MENU_BAR=1`일 때만 companion LaunchAgent를 설치하고 시작함.
-- 테스트: `./tests/run.sh`는 `off` command가 지원 backend 전체를 끄는지 검증함. `./tests/install.sh`는 menu bar companion이 opt-in 설치이고, companion build/load 실패가 core helper 또는 polling install을 중단하지 않는지 검증함. `scripts/validate.sh`는 AppKit을 사용할 수 있는 macOS 환경에서 companion build를 검증함.
+- 합격 기준은 메뉴를 열었을 때 실제 적용 상태를 알 수 있고, 핫스팟에서 연결 대기 중이면 한 번의 조작으로 다시 시도할 수 있는 것임. 자동 복구가 정상일 때에는 사용자 조작이 필요하지 않음.
+- 현재 메뉴와 아이콘, 상태 파일 형식은 [UI](UI.md)와 [명세](SPEC.md)에 둠. UI와 helper는 같은 일회성 실행 명령을 사용함. 종료하면 진행 중인 실행을 정리하고 앱이 관리하던 설정을 복원함.
 
 ## R9: Finder 실행 가능한 App Bundle
 

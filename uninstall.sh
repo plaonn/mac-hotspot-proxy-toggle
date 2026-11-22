@@ -32,12 +32,15 @@ stop_app_process_at_path() {
 /bin/launchctl bootout "gui/$(/usr/bin/id -u)" "$PLIST_PATH" >/dev/null 2>&1 || true
 /bin/launchctl bootout "gui/$(/usr/bin/id -u)" "$HELPER_PLIST_PATH" >/dev/null 2>&1 || true
 /bin/launchctl bootout "gui/$(/usr/bin/id -u)" "$MENU_BAR_PLIST_PATH" >/dev/null 2>&1 || true
+stop_app_process_at_path "$APP_INSTALL_PATH"
+stop_app_process_at_path "$LEGACY_APP_INSTALL_PATH"
+if [[ -f "$INSTALL_ROOT/lib/hotspot-proxy-toggle/proxy.rb" ]]; then
+  "$INSTALL_ROOT/bin/hotspot-proxy-toggle" stop
+fi
 /bin/rm -f "$PLIST_PATH"
 /bin/rm -f "$HELPER_PLIST_PATH"
 /bin/rm -f "$MENU_BAR_PLIST_PATH"
 /bin/rm -f "$BIN_LINK"
-stop_app_process_at_path "$APP_INSTALL_PATH"
-stop_app_process_at_path "$LEGACY_APP_INSTALL_PATH"
 /bin/rm -rf "$APP_INSTALL_PATH"
 /bin/rm -rf "$LEGACY_APP_INSTALL_PATH"
 /bin/rm -rf "$INSTALL_ROOT"

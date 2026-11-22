@@ -16,10 +16,21 @@ PROXY_PORT="${PROXY_PORT:-}"
 REQUIRE_PROXY_CHECK="${REQUIRE_PROXY_CHECK:-1}"
 PROXY_CHECK_TIMEOUT="${PROXY_CHECK_TIMEOUT:-3}"
 DRY_RUN="${DRY_RUN:-0}"
+REQUESTED_DRY_RUN="$DRY_RUN"
 NOTIFY_ON_CHANGE="${NOTIFY_ON_CHANGE:-0}"
 LANGUAGE="${LANGUAGE:-}"
 NOTIFICATION_LOCALE="${NOTIFICATION_LOCALE:-}"
 PROXY_STATE_CHANGED=0
+RUNTIME_DIR="${HOTSPOT_PROXY_RUNTIME_DIR:-$HOME/Library/Application Support/hotspot-proxy-toggle/managed}"
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [[ -L "$SCRIPT_PATH" ]]; do
+  target="$(/usr/bin/readlink "$SCRIPT_PATH")"
+  case "$target" in
+    /*) SCRIPT_PATH="$target" ;;
+    *) SCRIPT_PATH="$(/usr/bin/dirname "$SCRIPT_PATH")/$target" ;;
+  esac
+done
+PROXY_LIBRARY="$(cd "$(/usr/bin/dirname "$SCRIPT_PATH")/../lib/hotspot-proxy-toggle" && pwd -P)/proxy.rb"
 
 usage() {
   cat <<'EOF'
@@ -28,6 +39,8 @@ Usage:
   hotspot-proxy-toggle status
   hotspot-proxy-toggle evaluate
   hotspot-proxy-toggle off
+  hotspot-proxy-toggle stop
+  hotspot-proxy-toggle resume
 
 Config:
   ~/.config/hotspot-proxy-toggle.conf
@@ -69,6 +82,7 @@ load_config() {
   REQUIRE_PROXY_CHECK="${REQUIRE_PROXY_CHECK:-1}"
   PROXY_CHECK_TIMEOUT="${PROXY_CHECK_TIMEOUT:-3}"
   DRY_RUN="${DRY_RUN:-0}"
+  if [[ "$REQUESTED_DRY_RUN" == "1" ]]; then DRY_RUN=1; fi
   NOTIFY_ON_CHANGE="${NOTIFY_ON_CHANGE:-0}"
   LANGUAGE="${LANGUAGE:-${NOTIFICATION_LOCALE:-auto}}"
   if [[ "$LANGUAGE" != "auto" ]]; then
@@ -139,6 +153,17 @@ parse_config_value() {
 }
 
 validate_config() {
+  if [[ ! "$PROXY_CHECK_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
+    printf 'invalid proxy timeout\n' >&2
+    return 64
+  fi
+  if [[ -n "$PROXY_PORT" ]]; then
+    if [[ ! "$PROXY_PORT" =~ ^[0-9]{1,5}$ ]] || ((10#$PROXY_PORT < 1 || 10#$PROXY_PORT > 65535)); then
+      printf 'invalid proxy port\n' >&2
+      return 64
+    fi
+    PROXY_PORT=$((10#$PROXY_PORT))
+  fi
   case "$PROXY_TYPE" in
     socks5|http) ;;
     *)
@@ -162,17 +187,6 @@ validate_config() {
       return 64
       ;;
   esac
-}
-
-run_cmd() {
-  if [[ "$DRY_RUN" == "1" ]]; then
-    printf 'DRY_RUN:'
-    printf ' %q' "$@"
-    printf '\n'
-    log "DRY_RUN: $*"
-    return 0
-  fi
-  "$@"
 }
 
 wifi_device_from_hardware_ports() {
@@ -278,42 +292,6 @@ trim() {
   printf '%s' "$value"
 }
 
-csv_contains_exact() {
-  local csv="$1"
-  local needle="$2"
-  local old_ifs="$IFS"
-  local item
-
-  IFS=','
-  for item in $csv; do
-    item="$(trim "$item")"
-    if [[ "$item" == "$needle" ]]; then
-      IFS="$old_ifs"
-      return 0
-    fi
-  done
-  IFS="$old_ifs"
-  return 1
-}
-
-csv_marker_in_text() {
-  local csv="$1"
-  local text="$2"
-  local old_ifs="$IFS"
-  local item
-
-  IFS=','
-  for item in $csv; do
-    item="$(trim "$item")"
-    if [[ -n "$item" && "$text" == *"$item"* ]]; then
-      IFS="$old_ifs"
-      return 0
-    fi
-  done
-  IFS="$old_ifs"
-  return 1
-}
-
 current_socks5_proxy_state() {
   /usr/sbin/networksetup -getsocksfirewallproxy "$NETWORK_SERVICE"
 }
@@ -332,51 +310,24 @@ current_proxy_state() {
   esac
 }
 
-socks5_proxy_available() {
-  local host="$1"
-  local port="$2"
-  local response
-
-  response="$(
-    set +e +o pipefail
-    printf '\005\001\000' |
-      /usr/bin/nc -G "$PROXY_CHECK_TIMEOUT" -w "$PROXY_CHECK_TIMEOUT" "$host" "$port" 2>/dev/null |
-      /bin/dd bs=2 count=1 2>/dev/null |
-      /usr/bin/od -An -tx1 |
-      /usr/bin/tr -d ' \n'
-  )"
-
-  [[ "$response" == "0500" ]]
+endpoint_result() {
+  /usr/bin/ruby "$PROXY_LIBRARY" probe "$PROXY_TYPE" "$1" "$PROXY_PORT" "$PROXY_CHECK_TIMEOUT"
 }
 
-http_proxy_available() {
-  local host="$1"
-  local port="$2"
-  local first_line
-
-  first_line="$(
-    set +e +o pipefail
-    printf 'GET http://127.0.0.1/ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' |
-      /usr/bin/nc -G "$PROXY_CHECK_TIMEOUT" -w "$PROXY_CHECK_TIMEOUT" "$host" "$port" 2>/dev/null |
-      /usr/bin/head -n 1 |
-      /usr/bin/tr -d '\r'
-  )"
-
-  case "$first_line" in
-    HTTP/*" 407 "*) return 1 ;;
-    HTTP/*) return 0 ;;
-    *) return 1 ;;
-  esac
+proxy_operation() {
+  /usr/bin/ruby "$PROXY_LIBRARY" "$1" "$RUNTIME_DIR/session.json" "$NETWORK_SERVICE" "$PROXY_TYPE" "${2:-}" "$PROXY_PORT" "$DRY_RUN"
 }
 
-proxy_endpoint_available() {
-  local host="$1"
-  local port="$2"
-
-  case "$PROXY_TYPE" in
-    socks5) socks5_proxy_available "$host" "$port" ;;
-    http) http_proxy_available "$host" "$port" ;;
-  esac
+change_proxies() {
+  local effect
+  if ! effect="$(proxy_operation "$@")"; then
+    case "$effect" in
+      external_change|protected_endpoint) write_ui_state error "$effect" ;;
+      *) write_ui_state error apply_failed ;;
+    esac
+    return 1
+  fi
+  if [[ "$effect" == "changed" ]]; then mark_proxy_changed; fi
 }
 
 proxy_check_ok_label() {
@@ -485,15 +436,17 @@ notification_title() {
 
 active_notification_body() {
   case "$(resolve_notification_locale)" in
-    ko) printf '현재 트래픽이 핫스팟 프록시를 사용합니다.' ;;
-    *) printf 'Traffic is using the hotspot proxy.' ;;
+    ko) printf 'Mac에 핫스팟 프록시 설정이 적용됐습니다.' ;;
+    *) printf 'The hotspot proxy settings are applied on this Mac.' ;;
   esac
 }
 
 unavailable_notification_body() {
-  case "$(resolve_notification_locale)" in
-    ko) printf '핫스팟은 감지됐지만 프록시 서버가 응답하지 않습니다.' ;;
-    *) printf 'Hotspot detected, but the proxy server is not responding.' ;;
+  case "$(resolve_notification_locale):${1:-}" in
+    ko:authentication_required) printf '프록시 서버가 인증을 요구합니다.' ;;
+    en:authentication_required) printf 'The proxy requires authentication.' ;;
+    ko:*) printf 'Mac에서 프록시 연결을 확인하지 못했습니다.' ;;
+    *) printf 'This Mac could not confirm the proxy connection.' ;;
   esac
 }
 
@@ -571,6 +524,7 @@ write_ui_state() {
   local detail="${2:-}"
   local tmp
 
+  printf 'ui_state=%s detail=%s\n' "$kind" "$detail"
   if [[ "$DRY_RUN" == "1" ]]; then
     return 0
   fi
@@ -583,7 +537,7 @@ write_ui_state() {
   tmp="$UI_STATE_PATH.$$"
   if {
     printf '{\n'
-    printf '  "version": 1,\n'
+    printf '  "version": 2,\n'
     printf '  "kind": "%s",\n' "$kind"
     printf '  "proxy_type": "%s",\n' "$PROXY_TYPE"
     printf '  "detail": "%s",\n' "$detail"
@@ -594,144 +548,6 @@ write_ui_state() {
   fi
 
     log "ui state write failed: $UI_STATE_PATH"
-}
-
-socks5_proxy_state_matches() {
-  local router="$1"
-  local current
-
-  current="$(current_socks5_proxy_state)"
-  if printf '%s\n' "$current" | /usr/bin/grep -q '^Enabled: Yes$' &&
-     printf '%s\n' "$current" | /usr/bin/grep -q "^Server: $router$" &&
-     printf '%s\n' "$current" | /usr/bin/grep -q "^Port: $PROXY_PORT$"; then
-    return 0
-  fi
-
-  return 1
-}
-
-http_single_proxy_state_matches() {
-  local state="$1"
-  local router="$2"
-
-  if printf '%s\n' "$state" | /usr/bin/grep -q '^Enabled: Yes$' &&
-     printf '%s\n' "$state" | /usr/bin/grep -q "^Server: $router$" &&
-     printf '%s\n' "$state" | /usr/bin/grep -q "^Port: $PROXY_PORT$"; then
-    return 0
-  fi
-
-  return 1
-}
-
-set_socks5_proxy_on() {
-  local router="$1"
-
-  if socks5_proxy_state_matches "$router"; then
-    log "already enabled SOCKS5 proxy for $router:$PROXY_PORT"
-    return 0
-  fi
-
-  run_cmd /usr/sbin/networksetup -setsocksfirewallproxy "$NETWORK_SERVICE" "$router" "$PROXY_PORT"
-  run_cmd /usr/sbin/networksetup -setsocksfirewallproxystate "$NETWORK_SERVICE" on
-  mark_proxy_changed
-  log "enabled SOCKS proxy for $NETWORK_SERVICE via $router:$PROXY_PORT"
-}
-
-set_http_proxy_on() {
-  local router="$1"
-  local web secure changed=0
-
-  web="$(/usr/sbin/networksetup -getwebproxy "$NETWORK_SERVICE")"
-  secure="$(/usr/sbin/networksetup -getsecurewebproxy "$NETWORK_SERVICE")"
-
-  if http_single_proxy_state_matches "$web" "$router" &&
-     http_single_proxy_state_matches "$secure" "$router"; then
-    log "already enabled HTTP proxy for $router:$PROXY_PORT"
-    return 0
-  fi
-
-  if ! http_single_proxy_state_matches "$web" "$router"; then
-    run_cmd /usr/sbin/networksetup -setwebproxy "$NETWORK_SERVICE" "$router" "$PROXY_PORT"
-    run_cmd /usr/sbin/networksetup -setwebproxystate "$NETWORK_SERVICE" on
-    changed=1
-  fi
-
-  if ! http_single_proxy_state_matches "$secure" "$router"; then
-    run_cmd /usr/sbin/networksetup -setsecurewebproxy "$NETWORK_SERVICE" "$router" "$PROXY_PORT"
-    run_cmd /usr/sbin/networksetup -setsecurewebproxystate "$NETWORK_SERVICE" on
-    changed=1
-  fi
-
-  if [[ "$changed" == "1" ]]; then
-    mark_proxy_changed
-    log "enabled HTTP proxy for $NETWORK_SERVICE via $router:$PROXY_PORT"
-  fi
-}
-
-set_proxy_on() {
-  local router="$1"
-
-  case "$PROXY_TYPE" in
-    socks5)
-      set_http_proxy_off
-      set_socks5_proxy_on "$router"
-      ;;
-    http)
-      set_socks5_proxy_off
-      set_http_proxy_on "$router"
-      ;;
-  esac
-}
-
-set_socks5_proxy_off() {
-  local current
-
-  current="$(current_socks5_proxy_state)"
-  if printf '%s\n' "$current" | /usr/bin/grep -q '^Enabled: No$'; then
-    log "already disabled"
-    return 0
-  fi
-
-  run_cmd /usr/sbin/networksetup -setsocksfirewallproxystate "$NETWORK_SERVICE" off
-  mark_proxy_changed
-  log "disabled SOCKS proxy for $NETWORK_SERVICE"
-}
-
-set_http_proxy_off() {
-  local web secure changed=0
-
-  web="$(/usr/sbin/networksetup -getwebproxy "$NETWORK_SERVICE")"
-  secure="$(/usr/sbin/networksetup -getsecurewebproxy "$NETWORK_SERVICE")"
-
-  if ! printf '%s\n' "$web" | /usr/bin/grep -q '^Enabled: No$'; then
-    run_cmd /usr/sbin/networksetup -setwebproxystate "$NETWORK_SERVICE" off
-    changed=1
-  fi
-
-  if ! printf '%s\n' "$secure" | /usr/bin/grep -q '^Enabled: No$'; then
-    run_cmd /usr/sbin/networksetup -setsecurewebproxystate "$NETWORK_SERVICE" off
-    changed=1
-  fi
-
-  if [[ "$changed" == "0" ]]; then
-    log "already disabled HTTP proxy"
-    return 0
-  fi
-
-  mark_proxy_changed
-  log "disabled HTTP proxy for $NETWORK_SERVICE"
-}
-
-set_proxy_off() {
-  case "$PROXY_TYPE" in
-    socks5) set_socks5_proxy_off ;;
-    http) set_http_proxy_off ;;
-  esac
-}
-
-set_all_supported_proxies_off() {
-  set_socks5_proxy_off
-  set_http_proxy_off
 }
 
 evaluate() {
@@ -772,9 +588,13 @@ evaluate() {
 
   if [[ -z "$HOTSPOT_SSID" ]]; then
     reason="no-hotspot-ssid"
-  elif [[ -n "$ssid" && "$ssid" == "$HOTSPOT_SSID" ]]; then
+  elif [[ -z "$ssid" ]]; then
+    reason="ssid-unknown"
+  elif [[ "$ssid" == "$HOTSPOT_SSID" ]]; then
     reason="ssid"
-    printf 'status=hotspot reason=%s wifi_device=%s router=%s ssid=%q\n' "$reason" "$wifi_dev" "$router" "${ssid:-unknown}"
+    printf 'status=hotspot reason=%s wifi_device=%s router=%s ssid=%q' "$reason" "$wifi_dev" "$router" "${ssid:-unknown}"
+    printf '\n'
+    if [[ "${1:-}" == "--with-identity" ]]; then printf 'connection_id=%q\n' "$connection_id"; fi
     return 0
   fi
 
@@ -783,7 +603,7 @@ evaluate() {
 }
 
 router_from_evaluation() {
-  /usr/bin/sed -n 's/.* router=\([^ ]*\).*/\1/p'
+  /usr/bin/awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^router=/) { print substr($i, 8); exit } }'
 }
 
 do_evaluate() {
@@ -792,130 +612,155 @@ do_evaluate() {
   evaluate
 }
 
-do_status() {
-  local result rc router
+# Both observation and reconciliation use the same network and endpoint facts.
+inspect_connection() {
+  observed="$(evaluate --with-identity)" || true
+  evaluation="${observed%%$'\n'*}"
+  router=""
+  probe=""
+  case "$evaluation" in
+    status=hotspot*)
+      router="$(printf '%s\n' "$evaluation" | router_from_evaluation)"
+      if [[ -z "$PROXY_PORT" ]]; then
+        probe="port_missing"
+      elif [[ "$REQUIRE_PROXY_CHECK" == "1" ]]; then
+        probe="$(endpoint_result "$router")" || probe="connection_failed"
+      else
+        probe="unchecked"
+      fi
+      # The route or connection may have changed during the blocking probe.
+      local latest
+      latest="$(evaluate --with-identity)" || true
+      if [[ "$latest" != "$observed" ]]; then
+        observed="$latest"
+        evaluation="${latest%%$'\n'*}"
+        router=""
+        probe="network_changed"
+      fi
+      ;;
+  esac
+  case "$evaluation" in
+    status=hotspot*)
+      case "$probe" in ready|unchecked) kind="on" ;; *) kind="unavailable" ;; esac ;;
+    *reason=ssid-unknown|*reason=no-hotspot-ssid) kind="identity_unknown" ;;
+    status=not-hotspot*) kind="idle" ;;
+    status=not-wifi*|status=no-router*) kind="not_wifi" ;;
+    *) kind="error" ;;
+  esac
+  printf '%s\n' "$evaluation"
+}
 
+do_status() {
+  local observed evaluation router probe kind
   load_config
   validate_config
-  set +e
-  result="$(evaluate)"
-  rc="$?"
-  set -e
-  printf '%s\n' "$result"
-
-  if [[ "$rc" == "0" && -n "$PROXY_PORT" && "$REQUIRE_PROXY_CHECK" == "1" ]]; then
-    router="$(printf '%s\n' "$result" | router_from_evaluation)"
-    if proxy_endpoint_available "$router" "$PROXY_PORT"; then
+  if [[ -f "$RUNTIME_DIR/paused" ]]; then
+    printf 'status=off action=paused\nui_state=off detail=manual\n'
+    return
+  fi
+  inspect_connection
+  if [[ "$kind" == "on" || "$kind" == "unavailable" ]]; then
+    if [[ "$probe" == "ready" ]]; then
       printf 'proxy_check=%s router=%s port=%s\n' "$(proxy_check_ok_label)" "$router" "$PROXY_PORT"
-    else
-      printf 'proxy_check=%s router=%s port=%s\n' "$(proxy_check_missing_label)" "$router" "$PROXY_PORT"
+    elif [[ "$probe" != "unchecked" ]]; then
+      printf 'proxy_check=%s reason=%s\n' "$(proxy_check_missing_label)" "$probe"
     fi
   fi
-
   if ensure_network_service; then
     current_proxy_state
+    if [[ "$kind" == "on" ]] && ! proxy_operation matches "$router"; then
+      kind="unavailable"
+      probe="not_applied"
+    fi
   else
+    kind="error"
+    probe="network_service_unavailable"
     printf 'network_service=unavailable\n'
   fi
+  printf 'ui_state=%s detail=%s\n' "$kind" "$probe"
 }
 
 do_run() {
-  local result rc router
-
+  local observed evaluation router probe kind latest
   PROXY_STATE_CHANGED=0
   load_config
   validate_config
+  if [[ -f "$RUNTIME_DIR/paused" ]]; then
+    printf 'status=off action=paused\nui_state=off detail=manual\n'
+    return
+  fi
   if [[ -z "$PROXY_PORT" ]]; then
-    log "PROXY_PORT is required"
-    printf 'PROXY_PORT is required\n' >&2
+    write_ui_state error port_missing
     return 64
   fi
-
-  set +e
-  result="$(evaluate)"
-  rc="$?"
-  set -e
-  printf '%s\n' "$result"
-
-  if [[ "$rc" != "0" ]]; then
-    ensure_network_service || {
-      write_ui_state error network_service_unavailable
-      record_reconcile_state "off:$PROXY_TYPE:$result:network-service-unavailable"
-      printf 'status=network-service-unavailable action=none\n'
-      return 0
-    }
-    set_all_supported_proxies_off
-    case "$result" in
-      status=not-hotspot*)
-        write_ui_state idle
-        notify_reconcile_change "off:$PROXY_TYPE:$result" "$(notification_title idle)" "$(inactive_notification_body "$result")"
-        ;;
-      status=not-wifi*)
-        write_ui_state not_wifi
-        record_reconcile_state "off:$PROXY_TYPE:$result"
-        ;;
-      status=no-router*)
-        write_ui_state not_wifi no_router
-        record_reconcile_state "off:$PROXY_TYPE:$result"
-        ;;
-      *)
-        write_ui_state error
-        record_reconcile_state "off:$PROXY_TYPE:$result"
-        ;;
-    esac
-    return 0
+  inspect_connection
+  if [[ -f "$RUNTIME_DIR/paused" ]]; then
+    do_off
+    return
   fi
-
-  router="$(printf '%s\n' "$result" | router_from_evaluation)"
-  if [[ "$REQUIRE_PROXY_CHECK" == "1" ]] && ! proxy_endpoint_available "$router" "$PROXY_PORT"; then
-    printf 'status=proxy-unavailable proxy_type=%s router=%s port=%s action=off\n' "$PROXY_TYPE" "$router" "$PROXY_PORT"
-    log "$(proxy_display_name) proxy unavailable at $router:$PROXY_PORT"
-    ensure_network_service || {
+  if [[ "$kind" == "on" ]]; then
+    if ! ensure_network_service; then
       write_ui_state error network_service_unavailable
-      record_reconcile_state "off:$PROXY_TYPE:$result:proxy-unavailable:network-service-unavailable"
-      printf 'status=network-service-unavailable action=none\n'
+      return 1
+    fi
+    change_proxies apply "$router" || return 1
+    latest="$(evaluate --with-identity)" || true
+    if [[ -f "$RUNTIME_DIR/paused" ]]; then
+      do_off
+      return
+    fi
+    if [[ "$latest" != "$observed" ]]; then
+      change_proxies restore || return 1
+      write_ui_state checking network_changed
       return 0
-    }
-    set_all_supported_proxies_off
-    write_ui_state unavailable
-    notify_reconcile_change "off:$PROXY_TYPE:$result:proxy-unavailable" "$(notification_title unavailable)" "$(unavailable_notification_body)"
-    return 0
+    fi
+    if [[ "$DRY_RUN" == "1" ]]; then
+      printf 'DRY_RUN: would apply %s proxy on %s\n' "$PROXY_TYPE" "$NETWORK_SERVICE"
+      return 0
+    fi
+    write_ui_state on
+    notify_reconcile_change "on:$PROXY_TYPE:$evaluation" "$(notification_title on)" "$(active_notification_body)"
+    return
   fi
-
-  ensure_network_service || {
-    write_ui_state error network_service_unavailable
-    record_reconcile_state "on:$PROXY_TYPE:$result:network-service-unavailable"
-    printf 'status=network-service-unavailable action=none\n'
-    return 0
-  }
-  set_proxy_on "$router"
-  write_ui_state on
-  notify_reconcile_change "on:$PROXY_TYPE:$result" "$(notification_title on)" "$(active_notification_body)"
+  change_proxies restore || return 1
+  if [[ "$DRY_RUN" == "1" ]]; then printf 'DRY_RUN: would restore app-managed proxy settings\n'; fi
+  write_ui_state "$kind" "$probe"
+  case "$kind" in
+    unavailable)
+      printf 'status=proxy-unavailable proxy_type=%s router=%s port=%s action=restore\n' "$PROXY_TYPE" "$router" "$PROXY_PORT"
+      notify_reconcile_change "waiting:$PROXY_TYPE:$evaluation:$probe" "$(notification_title unavailable)" "$(unavailable_notification_body "$probe")" ;;
+    idle)
+      notify_reconcile_change "off:$PROXY_TYPE:$evaluation" "$(notification_title idle)" "$(inactive_notification_body "$evaluation")" ;;
+    *) record_reconcile_state "off:$PROXY_TYPE:$evaluation" ;;
+  esac
 }
 
 do_off() {
-  PROXY_STATE_CHANGED=0
   load_config
-  validate_config
-  ensure_network_service || {
-    write_ui_state error network_service_unavailable
-    record_reconcile_state "off:$PROXY_TYPE:manual:network-service-unavailable"
-    printf 'status=network-service-unavailable action=none\n'
-    return 0
-  }
-  set_all_supported_proxies_off
+  change_proxies restore || return 1
   write_ui_state off manual
   record_reconcile_state "off:$PROXY_TYPE:manual"
-  printf 'status=off action=off\n'
+  printf 'status=off action=restore\n'
 }
 
 main() {
   local cmd="${1:-}"
   case "$cmd" in
-    run) do_run ;;
+    run|off|stop|resume)
+      (umask 077 && /bin/mkdir -p "$RUNTIME_DIR") || return 1
+      # Signal in-flight probes before waiting for their write lock.
+      if [[ "$cmd" == "stop" ]]; then touch "$RUNTIME_DIR/paused" || return 1; fi
+      exec /usr/bin/lockf -k "$RUNTIME_DIR/runtime.lock" /bin/bash "$SCRIPT_PATH" --locked "$cmd" ;;
+    --locked)
+      case "${2:-}" in
+        run) do_run ;;
+        off) do_off ;;
+        stop) do_off ;;
+        resume) /bin/rm -f "$RUNTIME_DIR/paused" ;;
+        *) return 64 ;;
+      esac ;;
     status) do_status ;;
     evaluate) do_evaluate ;;
-    off) do_off ;;
     -h|--help|help|"") usage ;;
     *)
       usage >&2

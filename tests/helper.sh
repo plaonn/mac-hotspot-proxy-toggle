@@ -92,3 +92,19 @@ done
 printf 'ok - identity cache changes enter helper reconcile scheduler\n'
 printf 'ok - hotspot identity starts endpoint watchdog without another network event\n'
 printf 'ok - unrelated state files do not trigger identity reconciliation\n'
+
+
+/bin/kill "$HELPER_PID"
+wait "$HELPER_PID" 2>/dev/null || true
+echo off >"$FAKE_MODE"
+"$HELPER_BIN" --command "$TEST_TMP/fake-command" --identity "$TEST_TMP/throttle/id" \
+  --debounce 0.02 --max-runs 1 --window 0.8 --watchdog 0.15 >"$TEST_TMP/deferred.log" 2>&1 &
+HELPER_PID="$!"
+wait_for_pattern 'command: status=not-hotspot' "$TEST_TMP/deferred.log"
+echo unavailable >"$FAKE_MODE"
+echo changed >"$TEST_TMP/throttle/id"
+wait_for_pattern 'deferred run; reason=identity-change' "$TEST_TMP/deferred.log"
+wait_for_pattern 'started endpoint watchdog' "$TEST_TMP/deferred.log"
+echo off >"$FAKE_MODE"
+wait_for_pattern 'stopped endpoint watchdog' "$TEST_TMP/deferred.log"
+printf 'ok - final throttled identity change is retried and leaving stops the watchdog\n'

@@ -54,6 +54,7 @@ assert_contains() {
 }
 
 reset_runtime_state() {
+  RUNTIME_DIR="$TEST_TMP/managed"
   CONFIG_PATH="$TEST_TMP/missing.conf"
   LOG_PATH="$TEST_TMP/test.log"
   NETWORK_SERVICE=""
@@ -102,36 +103,13 @@ current_proxy_state() {
   printf 'Enabled: No\n'
 }
 
-socks5_proxy_available() {
-  [[ "$PROXY_AVAILABLE" == "1" ]]
+endpoint_result() {
+  if [[ "$PROXY_AVAILABLE" == "1" ]]; then printf ready; else printf connection_failed; fi
 }
 
-proxy_endpoint_available() {
-  [[ "$PROXY_AVAILABLE" == "1" ]]
-}
-
-set_socks5_proxy_off() {
-  PROXY_ACTIONS+=("off:socks5")
-  if [[ "$MOCK_PROXY_CHANGE_ON_OFF" == "1" ]]; then
-    mark_proxy_changed
-  fi
-}
-
-set_http_proxy_off() {
-  PROXY_ACTIONS+=("off:http")
-  if [[ "$MOCK_PROXY_CHANGE_ON_OFF" == "1" ]]; then
-    mark_proxy_changed
-  fi
-}
-
-set_socks5_proxy_on() {
-  PROXY_ACTIONS+=("on:socks5:$1:$PROXY_PORT")
-  mark_proxy_changed
-}
-
-set_http_proxy_on() {
-  PROXY_ACTIONS+=("on:http:$1:$PROXY_PORT")
-  mark_proxy_changed
+change_proxies() {
+  PROXY_ACTIONS+=("$1:$PROXY_TYPE:${2:-}")
+  if [[ "$1" == "apply" || "$MOCK_PROXY_CHANGE_ON_OFF" == "1" ]]; then mark_proxy_changed; fi
 }
 
 send_macos_notification() {
@@ -289,8 +267,8 @@ run_disables_proxy_when_endpoint_unavailable() {
   output="$(<"$TEST_TMP/run-unavailable.out")"
 
   assert_contains "$output" "status=hotspot" &&
-    assert_contains "$output" "status=proxy-unavailable proxy_type=socks5 router=172.20.10.42 port=1080 action=off" &&
-    [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 off:http" ]] &&
+    assert_contains "$output" "status=proxy-unavailable proxy_type=socks5 router=172.20.10.42 port=1080 action=restore" &&
+    [[ "${PROXY_ACTIONS[*]-}" == "restore:socks5:" ]] &&
     assert_contains "$(<"$UI_STATE_PATH")" '"kind": "unavailable"' &&
     ! assert_contains "$(<"$UI_STATE_PATH")" "172.20.10.42" &&
     ! assert_contains "$(<"$UI_STATE_PATH")" "My Phone"
@@ -304,7 +282,7 @@ run_enables_proxy_for_available_endpoint() {
 
   do_run >/dev/null
 
-  [[ "${PROXY_ACTIONS[*]-}" == "off:http on:socks5:172.20.10.99:1080" ]] &&
+  [[ "${PROXY_ACTIONS[*]-}" == "apply:socks5:172.20.10.99" ]] &&
     assert_contains "$(<"$UI_STATE_PATH")" '"kind": "on"'
 }
 
@@ -317,7 +295,7 @@ run_enables_http_web_proxy_backend() {
 
   do_run >/dev/null
 
-  [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 on:http:172.20.10.88:1080" ]]
+  [[ "${PROXY_ACTIONS[*]-}" == "apply:http:172.20.10.88" ]]
 }
 
 notification_is_opt_in_for_proxy_enable() {
@@ -340,7 +318,7 @@ run_notifies_when_proxy_enabled_and_opted_in() {
 
   do_run >/dev/null
 
-  [[ "${NOTIFICATIONS[*]-}" == "✅ Hotspot Proxy On:Traffic is using the hotspot proxy." ]] &&
+  [[ "${NOTIFICATIONS[*]-}" == "✅ Hotspot Proxy On:The hotspot proxy settings are applied on this Mac." ]] &&
     [[ "$(<"$STATE_PATH")" == "on:socks5:status=hotspot reason=ssid wifi_device=en0 router=172.20.10.99 ssid=My\\ Phone" ]]
 }
 
@@ -353,7 +331,7 @@ run_notifies_when_endpoint_unavailable_and_opted_in() {
 
   do_run >/dev/null
 
-  [[ "${NOTIFICATIONS[*]-}" == "⚠️ Hotspot Proxy Unavailable:Hotspot detected, but the proxy server is not responding." ]]
+  [[ "${NOTIFICATIONS[*]-}" == "⚠️ Hotspot Proxy Unavailable:This Mac could not confirm the proxy connection." ]]
 }
 
 run_notifies_when_ssid_context_changes_and_proxy_already_off() {
@@ -419,7 +397,7 @@ run_uses_korean_notification_locale() {
 
   do_run >/dev/null
 
-  [[ "${NOTIFICATIONS[*]-}" == "✅ 핫스팟 프록시 켜짐:현재 트래픽이 핫스팟 프록시를 사용합니다." ]]
+  [[ "${NOTIFICATIONS[*]-}" == "✅ 핫스팟 프록시 켜짐:Mac에 핫스팟 프록시 설정이 적용됐습니다." ]]
 }
 
 run_does_not_repeat_context_notification_without_change() {
@@ -435,26 +413,26 @@ run_does_not_repeat_context_notification_without_change() {
   [[ "${NOTIFICATIONS[*]-}" == "" ]]
 }
 
-run_disables_all_supported_backends_when_not_hotspot() {
+run_restores_managed_settings_when_not_hotspot() {
   reset_runtime_state
   HOTSPOT_SSID="Other Phone"
   MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.77\nSSID : My Phone'
 
   do_run >/dev/null
 
-  [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 off:http" ]] &&
+  [[ "${PROXY_ACTIONS[*]-}" == "restore:socks5:" ]] &&
     assert_contains "$(<"$UI_STATE_PATH")" '"kind": "idle"'
 }
 
-off_command_disables_all_supported_backends() {
+off_command_restores_managed_settings() {
   local output
 
   reset_runtime_state
   do_off >"$TEST_TMP/off.out"
   output="$(<"$TEST_TMP/off.out")"
 
-  assert_contains "$output" "status=off action=off" &&
-    [[ "${PROXY_ACTIONS[*]-}" == "off:socks5 off:http" ]] &&
+  assert_contains "$output" "status=off action=restore" &&
+    [[ "${PROXY_ACTIONS[*]-}" == "restore:socks5:" ]] &&
     assert_contains "$(<"$UI_STATE_PATH")" '"kind": "off"'
 }
 
@@ -505,7 +483,7 @@ run_test "reject non-Wi-Fi default route" reject_non_wifi_default_route
 run_test "SSID mismatch is not hotspot" ssid_mismatch_is_not_hotspot
 run_test "auto-detects network service from Wi-Fi device" auto_detects_network_service_from_wifi_device
 run_test "config parser loads known keys without executing shell" config_parser_loads_known_keys_without_executing_shell
-run_test "run disables proxy when endpoint is unavailable" run_disables_proxy_when_endpoint_unavailable
+run_test "run restores settings when endpoint is unavailable" run_disables_proxy_when_endpoint_unavailable
 run_test "run enables proxy for available endpoint" run_enables_proxy_for_available_endpoint
 run_test "run enables HTTP web proxy backend" run_enables_http_web_proxy_backend
 run_test "notification is opt-in for proxy enable" notification_is_opt_in_for_proxy_enable
@@ -517,8 +495,8 @@ run_test "run uses Korean idle notification copy" run_uses_korean_idle_notificat
 run_test "run records not-Wi-Fi without notification" run_records_not_wifi_without_notification
 run_test "run records no-router without notification" run_records_no_router_without_notification
 run_test "run uses Korean notification locale" run_uses_korean_notification_locale
-run_test "run disables all supported backends when not hotspot" run_disables_all_supported_backends_when_not_hotspot
-run_test "off command disables all supported backends" off_command_disables_all_supported_backends
+run_test "run restores managed settings when not hotspot" run_restores_managed_settings_when_not_hotspot
+run_test "off command restores managed settings" off_command_restores_managed_settings
 run_test "unsupported proxy type is rejected" unsupported_proxy_type_is_rejected
 run_test "unsupported notification locale is rejected" unsupported_notification_locale_is_rejected
 run_test "unsupported language is rejected" unsupported_language_is_rejected

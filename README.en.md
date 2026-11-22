@@ -18,7 +18,7 @@ Mac Hotspot Proxy Toggle reconciles the current state:
 2. The current Wi-Fi SSID exactly matches the configured `HOTSPOT_SSID`.
 3. The proxy endpoint responds on `router:PROXY_PORT`.
 
-If any condition does not match, Mac Hotspot Proxy Toggle disables the supported proxy backend. Current backends are `socks5` and `http`.
+If the phone proxy starts later, the app retries automatically (every 60 seconds by default). Choose **Reconnect Now** while waiting to retry immediately. Leaving the hotspot or quitting restores the proxy settings managed by the app. Current backends are `socks5` and `http`.
 
 ## Quick Install
 

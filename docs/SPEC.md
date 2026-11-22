@@ -22,8 +22,8 @@
 `bin/hotspot-proxy-toggle`은 아래 command를 지원함:
 
 - `evaluate`: hotspot detection 결과만 출력함.
-- `status`: hotspot detection 결과, optional proxy endpoint check, 현재 macOS SOCKS proxy state를 출력함.
-- `run`: 한 번 reconcile하고 종료함.
+- `status`: hotspot detection 결과, optional proxy endpoint check, 선택한 backend의 현재 macOS proxy state를 출력함.
+- `run`은 한 번 reconcile하고 종료함. `off`는 관리 중인 설정을 복원함. 메뉴에서 종료할 때 `stop`으로 후속 실행을 정지하고 복원하며, 다시 앱을 열 때 `resume`으로 재개함.
 
 Runtime command는 파일 설치, LaunchAgent 생성, persistent loop 실행을 하지 않음.
 
@@ -54,14 +54,13 @@ Companion은 아래 역할만 함:
 
 - macOS menu bar status area에 기본적으로 icon-only status item을 표시함.
 - `hotspot-proxy-toggle run`/`off`가 쓰는 UI state JSON을 watch해 상태 menu를 갱신함.
-- UI state JSON이 아직 없거나 읽을 수 없으면 `hotspot-proxy-toggle status`를 child process로 호출해 상태 menu를 갱신함.
-- 사용자가 menu에서 `Reconcile Now`를 선택하면 `hotspot-proxy-toggle run`을 한 번 호출함.
-- `Refresh Status`는 proxy setting을 변경하지 않고 `status`만 다시 호출함.
+- UI state가 없거나 형식이 오래됐거나 갱신 주기보다 오래된 경우 `status`가 읽은 현재 상태를 표시함.
+- 핫스팟에서 연결 대기 중에는 `지금 다시 연결`을 표시함. 이 메뉴는 `run`을 즉시 한 번 실행하고 그 결과를 표시함.
 - `Settings...`는 필수 설정, 언어, 자동 시작을 관리하는 Settings window를 엶.
 - 위치 권한 아래에서 connection-bound Wi-Fi identity cache를 갱신함. Cache 변경에 따른 자동 reconciliation은 helper 또는 polling LaunchAgent가 소유함.
-- `Quit Mac Hotspot Proxy Toggle`은 `hotspot-proxy-toggle off`를 호출해 proxy setting을 끄고, helper LaunchAgent와 menu LaunchAgent를 unload함.
+- `Quit Mac Hotspot Proxy Toggle`은 새 실행을 정지하고 관리 중인 설정을 복원한 뒤 helper, polling, menu LaunchAgent를 내림.
 
-Companion은 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음. Primary 상태 표시는 UI state JSON에서 파생함. Fallback 상태 표시는 `status=hotspot`, `status=not-hotspot`, `status=not-wifi`, `status=no-router`, `proxy_check=...-missing` 같은 runtime command output에서 파생함.
+Companion은 macOS proxy setting을 직접 변경하지 않고, hotspot/proxy decision을 재구현하지 않음. Primary 상태 표시는 UI state JSON에서 파생함. Fallback 상태는 같은 runtime이 출력하는 `ui_state`와 `detail`을 사용함.
 
 UI state JSON 기본 경로:
 
@@ -71,34 +70,13 @@ UI state JSON 기본 경로:
 
 UI state JSON은 menu 표시용 machine-readable state임. Notification 중복 방지용 `HOTSPOT_PROXY_STATE`와 역할이 다르며, SSID, router IP, local path를 포함하지 않음.
 
-현재 key:
+예시 데이터
 
 ```json
-{
-  "version": 1,
-  "kind": "on",
-  "proxy_type": "socks5",
-  "detail": "",
-  "updated_at": "2026-07-05T00:00:00Z"
-}
+{"version":2,"kind":"unavailable","proxy_type":"socks5","detail":"timeout","updated_at":"2026-07-05T00:00:00Z"}
 ```
 
-`kind` 값:
-
-- `on`
-- `unavailable`
-- `idle`
-- `not_wifi`
-- `off`
-- `error`
-
-상태 menu 문구는 아래 5상태임:
-
-- `Hotspot Proxy On` / `핫스팟 프록시 켜짐`
-- `Hotspot Proxy Unavailable` / `핫스팟 프록시 사용 불가`
-- `Hotspot Proxy Idle` / `핫스팟 대기`
-- `Wi-Fi Not Ready` / `Wi-Fi 준비 안 됨`
-- `Hotspot Proxy Error` / `핫스팟 프록시 오류`
+`kind`는 `on`, `unavailable`, `idle`, `identity_unknown`, `checking`, `not_wifi`, `off`, `error` 중 하나임. 대기 중인 이유는 `detail`에 담음. `on`은 Mac에서 선택한 backend의 주소·포트·활성 상태와 다른 backend의 비활성 상태를 확인했다는 뜻임.
 
 Status item은 기본적으로 template image icon만 표시함. `MENU_BAR_TITLE`을 지정하면 title 옆에 icon을 표시함. Icon은 binary 내부에서 AppKit vector drawing으로 생성하며 외부 asset file에 의존하지 않음. macOS light/dark menu bar tint와 맞추기 위해 template image로 설정함.
 
@@ -229,13 +207,11 @@ macOS proxy setting을 켜기 전에 아래 응답을 요구함:
 
 `run`은 아래 규칙을 적용함:
 
-- Wi-Fi가 아니거나, router가 없거나, hotspot이 아니면 설정된 network service의 backend proxy state를 끔.
-- Hotspot candidate지만 proxy endpoint를 사용할 수 없으면 backend proxy state를 끔.
-- Hotspot candidate이고 endpoint를 사용할 수 있으면 backend별 host를 현재 router IP로, port를 `PROXY_PORT`로 설정하고 proxy state를 켬.
-- `socks5` backend는 SOCKS firewall proxy state를 켜고 Web Proxy와 Secure Web Proxy state를 끔.
-- `http` backend는 Web Proxy와 Secure Web Proxy state를 함께 켜고 SOCKS firewall proxy state를 끔.
-- Hotspot이 아니거나 endpoint를 사용할 수 없으면 지원하는 backend 전체를 끔.
-- 현재 macOS proxy state가 이미 desired state와 일치하면 가능한 한 불필요한 `networksetup` write를 피함.
+- 핫스팟에서 서버가 뒤늦게 응답하면 다음 자동 검사(기본 60초) 또는 수동 재연결에서 적용함. 자동 검사 제한 시간에 도착한 마지막 변경은 제한이 끝나면 처리함.
+- 연결 검사 직후와 설정 적용 직후 Wi-Fi 연결을 다시 확인함. 설정을 변경하는 각 명령은 같은 잠금을 사용함.
+- 선택한 SOCKS 또는 HTTP/HTTPS backend를 적용하고 다른 지원 backend를 끔. 앱이 변경하는 설정은 첫 쓰기 전 기존 값과 함께 사용자 전용 세션 파일에 기록함. 각 쓰기가 끝나면 macOS 값을 다시 읽음.
+- 연결이 끊기거나 검사가 실패하거나 앱이 종료되면 해당 서비스의 기존 주소·포트·활성 상태를 복원함. 사용자가 직접 바꾼 항목은 그대로 둠. 원래 빈 주소에 비활성이었던 항목은 비활성으로 복원하며, macOS 설정에 마지막 주소가 비활성 값으로 남을 수 있음.
+- 인증 정보가 필요한 기존 주소를 덮어써야 한다면 변경을 중단함. 업데이트 전 버전이 이미 바꾼 설정의 원래 값은 복구할 수 없음.
 - `NOTIFY_ON_CHANGE=1`이면 최종 reconciliation state가 이전 `run`과 달라졌거나 실제 macOS proxy setting 변경이 있었던 `run`에서 macOS notification을 한 번 표시함. 같은 state가 유지되거나 `DRY_RUN=1`이면 notification을 표시하지 않음.
 
 ## Notification

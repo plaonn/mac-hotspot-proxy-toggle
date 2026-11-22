@@ -12,7 +12,7 @@ Mac Hotspot Proxy Toggle은 menu bar companion과 `Mac Hotspot Proxy Toggle.app`
 
 위 이미지는 README용 preview입니다. 실제 메뉴바 아이콘은 macOS template image로 렌더링되며, light/dark mode tint를 따릅니다.
 
-Menu bar companion은 `hotspot-proxy-toggle run`/`off`가 쓰는 UI state JSON을 watch해 상태를 갱신합니다. 메뉴 맨 위에는 `Mac Hotspot Proxy Toggle <version>` header를 표시합니다. 메뉴에서 `Settings...`를 선택하면 필수 설정과 자동 시작 상태를 편집합니다. `Refresh Status`를 선택하면 상태만 다시 확인하고, `Reconcile Now`를 선택하면 `hotspot-proxy-toggle run`을 한 번 실행합니다. `Quit Mac Hotspot Proxy Toggle`은 `hotspot-proxy-toggle off`로 proxy setting을 끄고 helper/menu LaunchAgent를 내립니다.
+메뉴는 Mac에서 확인한 적용 상태를 표시합니다. 핫스팟에서 프록시 연결을 기다리는 동안에는 실패 이유와 `지금 다시 연결`이 나타납니다. 이 항목을 누르면 다음 자동 검사까지 기다리지 않고 즉시 다시 시도합니다. `설정...`에서 접속 정보를 바꿀 수 있고, 종료하면 기존 프록시 설정을 복원합니다.
 
 UI state JSON 기본 경로:
 
@@ -46,13 +46,7 @@ macOS menu bar icon은 template image이므로 색상은 macOS가 정하고, gly
 
 ## Menu Status
 
-Menu status는 notification 문맥과 맞춘 5상태를 사용합니다.
-
-- `Hotspot Proxy On`: 핫스팟 프록시를 사용 중입니다.
-- `Hotspot Proxy Unavailable`: 핫스팟은 감지됐지만 프록시 서버가 응답하지 않습니다.
-- `Hotspot Proxy Idle`: 현재 Wi-Fi가 설정한 핫스팟이 아닙니다.
-- `Wi-Fi Not Ready`: Wi-Fi route 또는 router가 아직 준비되지 않았습니다.
-- `Hotspot Proxy Error`: 상태를 읽거나 해석하지 못했습니다.
+연결됨은 Mac에 핫스팟 프록시 설정이 적용됐다는 뜻입니다. 대기 중에는 인증 요구, 응답 시간 초과, 예상 밖의 응답 또는 연결 확인 실패를 표시합니다. Wi-Fi 이름을 확인할 수 없는 경우와 다른 Wi-Fi에 연결된 경우를 구분합니다.
 
 ## Mac Hotspot Proxy Toggle.app
 

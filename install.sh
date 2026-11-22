@@ -177,8 +177,11 @@ write_menu_bar_launch_agent() {
 
 install_files() {
   /bin/mkdir -p "$INSTALL_ROOT/bin" "$HOME/.local/bin"
+  /bin/mkdir -p "$INSTALL_ROOT/lib/hotspot-proxy-toggle"
+  /usr/bin/install -m 644 "$SOURCE_DIR/lib/hotspot-proxy-toggle/proxy.rb" "$INSTALL_ROOT/lib/hotspot-proxy-toggle/proxy.rb"
   /usr/bin/install -m 755 "$SOURCE_DIR/bin/hotspot-proxy-toggle" "$INSTALL_BIN"
   /bin/ln -sf "$INSTALL_BIN" "$BIN_LINK"
+  "$INSTALL_BIN" resume || return
   printf 'Installed binary: %s\n' "$INSTALL_BIN"
   printf 'Linked command: %s\n' "$BIN_LINK"
 }

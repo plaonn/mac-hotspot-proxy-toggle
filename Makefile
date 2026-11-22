@@ -30,6 +30,8 @@ build-app:
 
 install: build-helper build-menu-bar build-app
 	$(MKDIR_P) "$(DESTDIR)$(BINDIR)" "$(DESTDIR)$(LIBEXECDIR)" "$(DESTDIR)$(ETCDIR)"
+	$(MKDIR_P) "$(DESTDIR)$(PREFIX)/lib/hotspot-proxy-toggle"
+	$(INSTALL) -m 644 lib/hotspot-proxy-toggle/proxy.rb "$(DESTDIR)$(PREFIX)/lib/hotspot-proxy-toggle/proxy.rb"
 	$(INSTALL) -m 755 "bin/hotspot-proxy-toggle" "$(DESTDIR)$(BINDIR)/hotspot-proxy-toggle"
 	$(INSTALL) -m 755 "$(HELPER_BIN)" "$(DESTDIR)$(LIBEXECDIR)/hotspot-proxy-toggle-helper"
 	$(INSTALL) -m 755 "$(MENU_BAR_BIN)" "$(DESTDIR)$(LIBEXECDIR)/hotspot-proxy-toggle-menu"
@@ -38,6 +40,7 @@ install: build-helper build-menu-bar build-app
 	$(INSTALL) -m 644 "config.example" "$(DESTDIR)$(ETCDIR)/hotspot-proxy-toggle.conf.example"
 
 uninstall:
+	$(RM) -f "$(DESTDIR)$(PREFIX)/lib/hotspot-proxy-toggle/proxy.rb"
 	$(RM) -f "$(DESTDIR)$(BINDIR)/hotspot-proxy-toggle"
 	$(RM) -f "$(DESTDIR)$(LIBEXECDIR)/hotspot-proxy-toggle-helper"
 	$(RM) -f "$(DESTDIR)$(LIBEXECDIR)/hotspot-proxy-toggle-menu"

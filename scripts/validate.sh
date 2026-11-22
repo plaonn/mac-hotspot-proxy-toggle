@@ -22,10 +22,11 @@ scripts=(
 )
 
 printf '==> bash syntax\n'
-bash -n "${scripts[@]}"
+for script in "${scripts[@]}"; do bash -n "$script"; done
 
 printf '\n==> decision tests\n'
 ./tests/run.sh
+/usr/bin/ruby tests/proxy.rb
 
 printf '\n==> install flow tests\n'
 ./tests/install.sh
@@ -40,7 +41,8 @@ fi
 
 if command -v swiftc >/dev/null 2>&1; then
   printf '\n==> helper build\n'
-  ./scripts/build-helper.sh >/dev/null
+  helper_bin="$(./scripts/build-helper.sh)"
+  /usr/bin/ruby tests/reconnect.rb "$helper_bin"
   printf '\n==> helper lifecycle tests\n'
   ./tests/helper.sh
 else

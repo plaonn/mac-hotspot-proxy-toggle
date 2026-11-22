@@ -148,19 +148,46 @@ enum MenuLocale: String {
 enum ProxySummary {
     case checking
     case on
-    case unavailable
+    case unavailable(String)
+    case identityUnknown
+    case settingsError(String)
     case idle
     case off
     case notWiFi
     case error
+
+    init(kind: String, detail: String) {
+        switch kind {
+        case "on": self = .on
+        case "unavailable": self = .unavailable(detail)
+        case "error": self = .settingsError(detail)
+        case "identity_unknown": self = .identityUnknown
+        case "checking": self = .checking
+        case "idle": self = .idle
+        case "off": self = .off
+        case "not_wifi": self = .notWiFi
+        default: self = .error
+        }
+    }
 
     func title(locale: MenuLocale) -> String {
         switch locale.resolved {
         case .ko:
             switch self {
             case .checking: return "확인 중"
-            case .on: return "핫스팟 프록시 켜짐"
-            case .unavailable: return "핫스팟 프록시 사용 불가"
+            case .on: return "핫스팟 프록시 연결됨"
+            case .unavailable(let reason):
+                switch reason {
+                case "authentication_required": return "프록시 인증 필요"
+                case "timeout": return "프록시 응답 대기 시간 초과"
+                case "unexpected_response": return "예상한 프록시 응답을 받지 못함"
+                case "not_applied": return "Mac 프록시 설정 적용 대기"
+                default: return "Mac에서 프록시 연결을 확인하지 못함"
+                }
+            case .settingsError("external_change"): return "사용자가 변경한 프록시 설정 유지 중"
+            case .settingsError("protected_endpoint"): return "기존 인증 프록시 설정 유지 중"
+            case .settingsError: return "Mac 프록시 설정을 적용하거나 확인할 수 없음"
+            case .identityUnknown: return "핫스팟 이름을 확인할 수 없음"
             case .idle: return "핫스팟 대기"
             case .off: return "핫스팟 프록시 꺼짐"
             case .notWiFi: return "Wi-Fi 준비 안 됨"
@@ -170,7 +197,18 @@ enum ProxySummary {
             switch self {
             case .checking: return "Checking"
             case .on: return "Hotspot Proxy On"
-            case .unavailable: return "Hotspot Proxy Unavailable"
+            case .unavailable(let reason):
+                switch reason {
+                case "authentication_required": return "Proxy Authentication Required"
+                case "timeout": return "Proxy Response Timed Out"
+                case "unexpected_response": return "Unexpected Proxy Response"
+                case "not_applied": return "Waiting for Mac Proxy Settings"
+                default: return "Could Not Confirm Proxy Connection"
+                }
+            case .settingsError("external_change"): return "Preserving Modified Proxy Settings"
+            case .settingsError("protected_endpoint"): return "Preserving Existing Authenticated Proxy"
+            case .settingsError: return "Could Not Apply or Verify Mac Proxy Settings"
+            case .identityUnknown: return "Hotspot Identity Unknown"
             case .idle: return "Hotspot Proxy Idle"
             case .off: return "Hotspot Proxy Off"
             case .notWiFi: return "Wi-Fi Not Ready"
@@ -193,8 +231,8 @@ enum ProxySummary {
         case .ko:
             switch self {
             case .checking: return "핫스팟 프록시 상태를 확인하는 중입니다."
-            case .on: return "현재 트래픽이 핫스팟 프록시를 사용합니다."
-            case .unavailable: return "핫스팟은 감지됐지만 프록시 서버가 응답하지 않습니다."
+            case .on: return "Mac에 핫스팟 프록시 설정이 적용됐습니다."
+            case .unavailable, .identityUnknown, .settingsError: return title(locale: locale)
             case .idle: return "현재 Wi-Fi는 설정한 핫스팟이 아닙니다."
             case .off: return "핫스팟 프록시가 꺼져 있습니다."
             case .notWiFi: return "Wi-Fi route 또는 router가 준비되지 않았습니다."
@@ -203,8 +241,8 @@ enum ProxySummary {
         case .auto, .en:
             switch self {
             case .checking: return "Hotspot proxy status is being checked."
-            case .on: return "Traffic is using the hotspot proxy."
-            case .unavailable: return "Hotspot detected, but the proxy server is not responding."
+            case .on: return "The hotspot proxy settings are applied on this Mac."
+            case .unavailable, .identityUnknown, .settingsError: return title(locale: locale)
             case .idle: return "Current Wi-Fi is not a configured hotspot."
             case .off: return "Hotspot proxy is off."
             case .notWiFi: return "Wi-Fi route or router is not ready."
@@ -217,9 +255,9 @@ enum ProxySummary {
         switch self {
         case .on:
             return .hotspotProxyOn
-        case .unavailable, .error:
+        case .unavailable, .settingsError, .error:
             return .hotspotProxyOff
-        case .checking, .idle, .off, .notWiFi:
+        case .checking, .idle, .off, .notWiFi, .identityUnknown:
             return .nonHotspot
         }
     }
@@ -1140,6 +1178,13 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         action: nil,
         keyEquivalent: ""
     )
+    private lazy var retryItem = NSMenuItem(
+        title: menuText(en: "Reconnect Now", ko: "지금 다시 연결"),
+        action: #selector(reconcileNow), keyEquivalent: "r"
+    )
+    private var isReconnecting = false
+    private var isStopping = false
+    private var observation = 0
     private var timer: Timer?
     private var isRefreshing = false
     private let stateWatcherQueue = DispatchQueue(
@@ -1160,7 +1205,16 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         configureNotifications()
         configureStatusItem()
-        ensureAutomationAgentLoaded()
+        runCommand(argument: "resume") { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self, !self.isStopping else { return }
+                if result.status == 0 {
+                    self.ensureAutomationAgentLoaded()
+                } else {
+                    self.apply(summary: .error)
+                }
+            }
+        }
         wifiIdentityBroker.start()
         readStateOrRefresh()
         startStateWatchers()
@@ -1186,11 +1240,10 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         menu.addItem(headerItem)
         menu.addItem(.separator())
         menu.addItem(statusMenuItem)
+        retryItem.isHidden = true
+        menu.addItem(retryItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: menuText(en: "Settings...", ko: "설정..."), action: #selector(openSettings), keyEquivalent: ","))
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: menuText(en: "Refresh Status", ko: "상태 새로고침"), action: #selector(refreshStatusFromMenu), keyEquivalent: "r"))
-        menu.addItem(NSMenuItem(title: menuText(en: "Reconcile Now", ko: "지금 동기화"), action: #selector(reconcileNow), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: menuText(en: "Quit \(BuildInfo.appName)", ko: "\(BuildInfo.appName) 종료"), action: #selector(quit), keyEquivalent: "q"))
 
@@ -1199,10 +1252,6 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         }
 
         statusItem.menu = menu
-    }
-
-    @objc private func refreshStatusFromMenu() {
-        refreshStatus()
     }
 
     @objc private func openSettings() {
@@ -1215,11 +1264,12 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     }
 
     private func refreshStatus() {
-        guard !isRefreshing else {
+        guard !isRefreshing, !isReconnecting, !isStopping else {
             return
         }
 
         isRefreshing = true
+        let generation = observation
         runCommand(argument: "status") { [weak self] result in
             guard let self else {
                 return
@@ -1227,29 +1277,45 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
 
             let summary = self.summarizeStatus(result)
             DispatchQueue.main.async {
-                self.apply(summary: summary)
                 self.isRefreshing = false
+                guard generation == self.observation, !self.isStopping else { return }
+                self.apply(summary: summary)
             }
         }
     }
 
     @objc private func reconcileNow() {
+        guard !isReconnecting, !isStopping else { return }
+        isReconnecting = true
+        observation += 1
         setChecking()
-        runCommand(argument: "run") { [weak self] _ in
+        runCommand(argument: "run") { [weak self] result in
             DispatchQueue.main.async {
-                self?.isRefreshing = false
-                self?.refreshStatus()
+                guard let self, !self.isStopping else { return }
+                self.isReconnecting = false
+                self.apply(summary: self.summarizeStatus(result))
             }
         }
     }
 
     @objc private func quit() {
+        guard !isStopping else { return }
+        isStopping = true
+        observation += 1
         setChecking()
-        runCommand(argument: "off") { [weak self] _ in
-            self?.bootoutLaunchAgent(label: "com.github.plaonn.hotspot-proxy-toggle.helper") {
-                self?.bootoutLaunchAgent(label: "com.github.plaonn.hotspot-proxy-toggle.menu") {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        NSApp.terminate(nil)
+        runCommand(argument: "stop") { [weak self] result in
+            guard let self else { return }
+            guard result.status == 0 else {
+                DispatchQueue.main.async {
+                    self.isStopping = false
+                    self.apply(summary: .error)
+                }
+                return
+            }
+            self.bootoutLaunchAgent(label: "com.github.plaonn.hotspot-proxy-toggle.helper") {
+                self.bootoutLaunchAgent(label: "com.github.plaonn.hotspot-proxy-toggle") {
+                    self.bootoutLaunchAgent(label: "com.github.plaonn.hotspot-proxy-toggle.menu") {
+                        DispatchQueue.main.async { NSApp.terminate(nil) }
                     }
                 }
             }
@@ -1257,12 +1323,18 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     }
 
     private func setChecking() {
+        retryItem.isHidden = true
         statusMenuItem.title = ProxySummary.checking.statusText(locale: effectiveLocale())
         statusItem.button?.image = MenuBarIcon.image(for: ProxySummary.checking.iconStyle)
         statusItem.button?.toolTip = ProxySummary.checking.tooltip(locale: effectiveLocale())
     }
 
     private func apply(summary: ProxySummary) {
+        if case .unavailable = summary {
+            retryItem.isHidden = false
+        } else {
+            retryItem.isHidden = true
+        }
         let locale = effectiveLocale()
         statusMenuItem.title = summary.statusText(locale: locale)
         statusItem.button?.title = config.title
@@ -1272,6 +1344,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     }
 
     private func readStateOrRefresh() {
+        guard !isStopping else { return }
         wifiIdentityBroker.refresh()
         if applyStateFile() {
             return
@@ -1283,53 +1356,30 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
     private func applyStateFile() -> Bool {
         let url = URL(fileURLWithPath: config.statePath)
         guard let data = try? Data(contentsOf: url),
-              let state = try? JSONDecoder().decode(UIState.self, from: data) else {
+              let state = try? JSONDecoder().decode(UIState.self, from: data),
+              state.version == 2,
+              let date = ISO8601DateFormatter().date(from: state.updatedAt),
+              abs(date.timeIntervalSinceNow) <= config.refreshSeconds else {
             return false
         }
 
         DispatchQueue.main.async {
-            self.apply(summary: self.summarizeState(state))
+            guard !self.isStopping, !self.isReconnecting else { return }
+            self.observation += 1
+            self.apply(summary: ProxySummary(kind: state.kind, detail: state.detail ?? ""))
         }
         return true
     }
 
-    private func summarizeState(_ state: UIState) -> ProxySummary {
-        switch state.kind {
-        case "on": return .on
-        case "unavailable": return .unavailable
-        case "idle": return .idle
-        case "off": return .off
-        case "not_wifi": return .notWiFi
-        default: return .error
-        }
-    }
-
     private func summarizeStatus(_ result: CommandResult) -> ProxySummary {
-        guard result.status == 0 || result.status == 1 || result.status == 2 else {
+        guard let line = result.output.split(separator: "\n").last(where: { $0.hasPrefix("ui_state=") }) else {
             return .error
         }
-
-        let lines = result.output.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
-        guard let firstLine = lines.first else {
-            return .error
-        }
-
-        if firstLine.hasPrefix("status=hotspot") {
-            if lines.contains(where: { $0.contains("proxy_check=") && $0.contains("-missing") }) {
-                return .unavailable
-            }
-            return .on
-        }
-
-        if firstLine.hasPrefix("status=not-hotspot") {
-            return .idle
-        }
-
-        if firstLine.hasPrefix("status=not-wifi") || firstLine.hasPrefix("status=no-router") {
-            return .notWiFi
-        }
-
-        return .error
+        let fields = line.split(separator: " ")
+        let kind = String(fields[0].dropFirst("ui_state=".count))
+        guard result.status == 0 || kind == "error" else { return .error }
+        let detail = fields.dropFirst().first.map { String($0.dropFirst("detail=".count)) } ?? ""
+        return ProxySummary(kind: kind, detail: detail)
     }
 
     private func runCommand(argument: String, completion: @escaping (CommandResult) -> Void) {
@@ -1344,19 +1394,23 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
                 process.arguments = [command, argument]
             }
 
+            var environment = ProcessInfo.processInfo.environment
+            environment["HOTSPOT_PROXY_CONFIG"] = self.config.configPath
+            environment["HOTSPOT_PROXY_UI_STATE"] = self.config.statePath
+            process.environment = environment
             let output = Pipe()
             process.standardOutput = output
             process.standardError = output
 
             do {
                 try process.run()
-                process.waitUntilExit()
             } catch {
                 completion(CommandResult(status: 127, output: String(describing: error)))
                 return
             }
 
             let data = output.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
             let text = String(data: data, encoding: .utf8) ?? ""
             completion(CommandResult(status: process.terminationStatus, output: text))
         }
@@ -1486,8 +1540,8 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         process.arguments = arguments
-        process.standardOutput = Pipe()
-        process.standardError = Pipe()
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()

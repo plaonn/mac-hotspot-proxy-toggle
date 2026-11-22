@@ -91,7 +91,7 @@ struct CommandResult {
             if line.hasPrefix("status=hotspot ") || line == "status=hotspot" {
                 return true
             }
-            if line.hasPrefix("status=not-hotspot ")
+            if line.hasPrefix("status=off ") || line.hasPrefix("status=not-hotspot ")
                 || line.hasPrefix("status=not-wifi ")
                 || line.hasPrefix("status=no-router ") {
                 return false
@@ -297,7 +297,13 @@ final class EventHelper {
         recentRuns = recentRuns.filter { now.timeIntervalSince($0) <= config.windowSeconds }
 
         if recentRuns.count >= config.maxRuns {
-            log("throttled run; reason=\(reason)")
+            let delay = config.windowSeconds - now.timeIntervalSince(recentRuns[0])
+            log("deferred run; reason=\(reason)")
+            isRunScheduled = true
+            queue.asyncAfter(deadline: .now() + max(0.01, delay)) {
+                self.isRunScheduled = false
+                self.runIfAllowed(reason: reason)
+            }
             return
         }
 
@@ -342,13 +348,13 @@ final class EventHelper {
 
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             log("failed to start command: \(error)")
             return CommandResult(status: 127, output: "")
         }
 
         let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
         let text = String(data: data, encoding: .utf8) ?? ""
         if !text.isEmpty {
             text.split(separator: "\n", omittingEmptySubsequences: false).forEach { line in

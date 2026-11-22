@@ -8,9 +8,7 @@ Mac Hotspot Proxy Toggle은 menu bar companion과 `Mac Hotspot Proxy Toggle.app`
 
 ## Menu Bar Companion
 
-![Mac Hotspot Proxy Toggle menu preview](assets/mac-hotspot-proxy-toggle-menu-preview.svg)
-
-위 이미지는 README용 preview입니다. 실제 메뉴바 아이콘은 macOS template image로 렌더링되며, light/dark mode tint를 따릅니다.
+<img src="assets/menu-ko.png" width="372" alt="프록시 응답 대기 중 메뉴와 지금 다시 연결 항목">
 
 메뉴 첫 줄에서 현재 상태를 확인합니다. 핫스팟에서 프록시 응답을 기다리는 동안에는 실패 이유와 `지금 다시 연결`이 나타납니다. 자동 재시도가 활성 상태이면 기다려도 된다고 안내합니다. 버튼을 누르면 즉시 다시 시도합니다. 서버가 인증을 요구하면 인증 없는 프록시만 지원한다고 안내합니다. `설정…`에서 접속 정보를 바꿀 수 있고, `종료`를 선택하면 기존 프록시 설정을 복원합니다.
 
@@ -55,6 +53,8 @@ macOS menu bar icon은 template image이므로 색상은 macOS가 정하고, gly
 App bundle은 핫스팟 프록시 켜짐 상태 glyph를 기반으로 한 아이콘을 사용합니다. Notification은 가능하면 이 app sender를 사용해 같은 app icon으로 표시되게 시도합니다.
 
 ## Settings
+
+<img src="assets/settings-ko.png" width="420" alt="핫스팟 이름, 프록시 유형, 포트와 로그인 시 자동 시작을 지정하는 설정 창">
 
 Settings window는 아래 main settings만 노출합니다.
 

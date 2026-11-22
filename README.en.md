@@ -8,6 +8,8 @@
 
 **Connect to your phone’s hotspot and your Mac uses the phone’s proxy. Leave the hotspot and your previous proxy settings are restored.** Mac Hotspot Proxy Toggle is a menu bar utility for people who run a SOCKS5 or HTTP proxy server on their phone.
 
+<img src="docs/assets/menu-en.png" width="403" alt="Menu showing the timeout, automatic retry, and Reconnect Now">
+
 macOS applies proxy settings to the entire Wi-Fi service, so a proxy you enable on a hotspot can stay enabled at home or at work. Set the hotspot name, proxy type, and port once. The app finds the current router address and checks the proxy each time you connect.
 
 | When | What happens on the Mac |
@@ -17,8 +19,6 @@ macOS applies proxy settings to the entire Wi-Fi service, so a proxy you enable 
 | You return to home or office Wi-Fi | The app restores the settings it changed and preserves any settings you edited yourself. |
 
 Open the menu to see whether the proxy settings were applied, the response timed out, or the server requires authentication. The phone must run a proxy that accepts connections without authentication.
-
-![The menu bar app waiting for the phone proxy, with automatic retry status and a Reconnect Now action.](docs/assets/mac-hotspot-proxy-toggle-menu-preview.svg)
 
 ## Quick Install
 
@@ -31,6 +31,8 @@ HOTSPOT_MENU_BAR=1 PROXY_PORT=1080 ./install.sh
 ```
 
 Open **Settings…** from the menu bar and save your phone’s **Hotspot Name (SSID)**, **Proxy Type**, and **Proxy Port**. Port `1080` is an example. Use the port configured on your phone. On Macs that hide the Wi-Fi name, allow Location access so the app can identify the hotspot. The app does not collect location coordinates.
+
+<img src="docs/assets/settings-en.png" width="420" alt="Settings window for the hotspot name, proxy type, and port">
 
 ### Run in the background with Homebrew
 

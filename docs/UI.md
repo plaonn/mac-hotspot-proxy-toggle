@@ -12,7 +12,7 @@ Mac Hotspot Proxy Toggle은 menu bar companion과 `Mac Hotspot Proxy Toggle.app`
 
 위 이미지는 README용 preview입니다. 실제 메뉴바 아이콘은 macOS template image로 렌더링되며, light/dark mode tint를 따릅니다.
 
-메뉴는 Mac에서 확인한 적용 상태를 표시합니다. 핫스팟에서 프록시 연결을 기다리는 동안에는 실패 이유와 `지금 다시 연결`이 나타납니다. 이 항목을 누르면 다음 자동 검사까지 기다리지 않고 즉시 다시 시도합니다. `설정...`에서 접속 정보를 바꿀 수 있고, 종료하면 기존 프록시 설정을 복원합니다.
+메뉴 첫 줄에서 현재 상태를 확인합니다. 핫스팟에서 프록시 응답을 기다리는 동안에는 실패 이유와 `지금 다시 연결`이 나타납니다. 자동 재시도가 활성 상태이면 기다려도 된다고 안내합니다. 버튼을 누르면 즉시 다시 시도합니다. 서버가 인증을 요구하면 인증 없는 프록시만 지원한다고 안내합니다. `설정…`에서 접속 정보를 바꿀 수 있고, `종료`를 선택하면 기존 프록시 설정을 복원합니다.
 
 UI state JSON 기본 경로:
 
@@ -58,12 +58,12 @@ App bundle은 핫스팟 프록시 켜짐 상태 glyph를 기반으로 한 아이
 
 Settings window는 아래 main settings만 노출합니다.
 
-- `Hotspot SSID`: 단일 휴대폰 핫스팟 SSID.
-- `Proxy Type`: `SOCKS5` 또는 `HTTP/HTTPS Web Proxy`.
-- `Proxy Port`: 휴대폰 핫스팟 router IP에서 proxy server가 listen하는 port.
-- `Language`: `System Default`, `English`, `한국어`.
-- `Start Automatically`: background helper와 menu bar app의 login 자동 시작을 함께 켜거나 끄는 단일 toggle. 저장 중 현재 열려 있는 menu app은 종료하지 않습니다.
+- `핫스팟 이름 (SSID)`: 단일 휴대폰 핫스팟 SSID.
+- `프록시 유형`: `SOCKS5` 또는 `HTTP/HTTPS Web Proxy`.
+- `프록시 포트`: 휴대폰 핫스팟 router IP에서 proxy server가 listen하는 port.
+- `언어`: `System Default`, `English`, `한국어`.
+- `로그인 시 자동 시작`: background helper와 menu bar app의 login 자동 시작을 함께 켜거나 끄는 단일 toggle. 저장 중 현재 열려 있는 menu app은 종료하지 않습니다.
 
-Advanced에는 troubleshooting용 `Proxy Check Timeout (seconds)`와 `Watchdog Interval (seconds)`만 둡니다.
+고급은 처음에 접혀 있습니다. 펼치면 프록시 확인 제한시간과 자동 재시도 간격을 조정하거나 설정 파일과 로그를 열 수 있습니다. 핫스팟 이름이 비어 있으면 저장하기 전에 입력란에 안내합니다. 창을 닫고 다시 열면 마지막 저장값이 표시되고, 언어를 저장하면 메뉴 전체가 즉시 갱신됩니다.
 
 `NETWORK_SERVICE`와 `WIFI_DEVICE`는 기본적으로 자동 감지하며 Settings에 일반 설정으로 노출하지 않습니다.

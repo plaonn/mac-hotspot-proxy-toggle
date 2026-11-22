@@ -13,6 +13,7 @@ scripts=(
   "tests/install.sh"
   "tests/helper.sh"
   "tests/notification.sh"
+  "tests/menu-ui.sh"
   "scripts/validate.sh"
   "scripts/build-helper.sh"
   "scripts/build-menu-bar.sh"
@@ -54,7 +55,8 @@ fi
 
 if command -v swiftc >/dev/null 2>&1 && [[ -d /System/Library/Frameworks/AppKit.framework ]]; then
   printf '\n==> menu bar build\n'
-  ./scripts/build-menu-bar.sh >/dev/null
+  menu_binary="$(./scripts/build-menu-bar.sh)"
+  ./tests/menu-ui.sh "$(dirname "$menu_binary")/hotspot-proxy-toggle-version.swift"
   printf '\n==> notification presentation tests\n'
   ./tests/notification.sh
   printf '\n==> app bundle build\n'

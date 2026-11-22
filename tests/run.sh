@@ -191,6 +191,16 @@ missing_hotspot_ssid_does_not_match() {
     assert_contains "$output" "reason=no-hotspot-ssid"
 }
 
+ui_distinguishes_missing_name_from_unknown_wifi() {
+  reset_runtime_state
+  MOCK_IPCONFIG_SUMMARY=$'Router : 172.20.10.1\nSSID : <redacted>'
+  do_run >/dev/null
+  assert_contains "$(<"$UI_STATE_PATH")" '"kind": "setup_required"' || return 1
+  HOTSPOT_SSID="My Phone"
+  do_run >/dev/null
+  assert_contains "$(<"$UI_STATE_PATH")" '"kind": "identity_unknown"'
+}
+
 reject_non_wifi_default_route() {
   local output rc
 
@@ -479,6 +489,7 @@ run_test "hotspot by exact SSID" hotspot_by_exact_ssid
 run_test "redacted SSID uses connection-bound identity" redacted_ssid_uses_connection_bound_identity
 run_test "redacted SSID rejects stale identity" redacted_ssid_rejects_stale_identity
 run_test "missing hotspot SSID does not match" missing_hotspot_ssid_does_not_match
+run_test "UI distinguishes missing name from unreadable Wi-Fi" ui_distinguishes_missing_name_from_unknown_wifi
 run_test "reject non-Wi-Fi default route" reject_non_wifi_default_route
 run_test "SSID mismatch is not hotspot" ssid_mismatch_is_not_hotspot
 run_test "auto-detects network service from Wi-Fi device" auto_detects_network_service_from_wifi_device

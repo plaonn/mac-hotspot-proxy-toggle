@@ -55,8 +55,9 @@ Companion은 아래 역할만 함:
 - macOS menu bar status area에 기본적으로 icon-only status item을 표시함.
 - `hotspot-proxy-toggle run`/`off`가 쓰는 UI state JSON을 watch해 상태 menu를 갱신함.
 - UI state가 없거나 형식이 오래됐거나 갱신 주기보다 오래된 경우 `status`가 읽은 현재 상태를 표시함.
+- 이벤트 helper는 재시도 타이머가 활성인 동안 공유 파일 잠금을 보유함. 메뉴를 열면 이 잠금 또는 등록된 주기 실행 작업을 확인한 경우에 자동 재시도를 안내함. helper가 종료되면 운영체제가 잠금을 해제함.
 - 핫스팟에서 연결 대기 중에는 `지금 다시 연결`을 표시함. 이 메뉴는 `run`을 즉시 한 번 실행하고 그 결과를 표시함.
-- `Settings...`는 필수 설정, 언어, 자동 시작을 관리하는 Settings window를 엶.
+- `설정…`는 필수 설정, 언어, 자동 시작을 관리하는 Settings window를 엶.
 - 위치 권한 아래에서 connection-bound Wi-Fi identity cache를 갱신함. Cache 변경에 따른 자동 reconciliation은 helper 또는 polling LaunchAgent가 소유함.
 - `Quit Mac Hotspot Proxy Toggle`은 새 실행을 정지하고 관리 중인 설정을 복원한 뒤 helper, polling, menu LaunchAgent를 내림.
 
@@ -76,7 +77,7 @@ UI state JSON은 menu 표시용 machine-readable state임. Notification 중복 �
 {"version":2,"kind":"unavailable","proxy_type":"socks5","detail":"timeout","updated_at":"2026-07-05T00:00:00Z"}
 ```
 
-`kind`는 `on`, `unavailable`, `idle`, `identity_unknown`, `checking`, `not_wifi`, `off`, `error` 중 하나임. 대기 중인 이유는 `detail`에 담음. `on`은 Mac에서 선택한 backend의 주소·포트·활성 상태와 다른 backend의 비활성 상태를 확인했다는 뜻임.
+`kind`는 `on`, `unavailable`, `idle`, `identity_unknown`, `setup_required`, `checking`, `not_wifi`, `off`, `error` 중 하나임. 대기 중인 이유는 `detail`에 담음. `on`은 Mac에서 선택한 backend의 주소·포트·활성 상태와 다른 backend의 비활성 상태를 확인했다는 뜻임.
 
 Status item은 기본적으로 template image icon만 표시함. `MENU_BAR_TITLE`을 지정하면 title 옆에 icon을 표시함. Icon은 binary 내부에서 AppKit vector drawing으로 생성하며 외부 asset file에 의존하지 않음. macOS light/dark menu bar tint와 맞추기 위해 template image로 설정함.
 
@@ -122,20 +123,22 @@ App bundle 원칙:
 
 ## Settings Window
 
-`Mac Hotspot Proxy Toggle.app` menu의 `Settings...`는 아래 main settings를 제공함. Menu top에는 `Mac Hotspot Proxy Toggle <version>` header를 표시하고, version은 repository `VERSION` file에서 build-time 주입함:
+`Mac Hotspot Proxy Toggle.app` menu의 `설정…`는 다음 설정을 제공함. 메뉴의 첫 줄에 현재 상태를 표시함.
 
-- `Hotspot SSID`: 단일 SSID exact match.
+- `Hotspot Name (SSID)`: 단일 SSID exact match.
 - `Proxy Type`: `SOCKS5` 또는 `HTTP/HTTPS Web Proxy`.
 - `Proxy Port`: 현재 핫스팟 router IP에서 proxy server가 listen하는 port.
 - `Language`: `System Default`, `English`, `한국어`.
-- `Start Automatically`: helper LaunchAgent와 menu LaunchAgent를 함께 켜거나 끄는 단일 사용자 toggle. Settings 저장 중 현재 실행 중인 menu app은 종료하지 않음.
+- `Start at Login`: helper LaunchAgent와 menu LaunchAgent를 함께 켜거나 끄는 단일 사용자 toggle. Settings 저장 중 현재 실행 중인 menu app은 종료하지 않음.
 
-Advanced settings:
+기본적으로 접혀 있는 고급 설정에서 두 시간값을 조정하거나 설정 파일과 로그를 열 수 있음.
 
 - `Proxy Check Timeout`: seconds
-- `Watchdog Interval`: seconds
+- `Automatic Retry Interval`: seconds
 
 Settings 저장은 whitelisted config key만 갱신하고, legacy `HOTSPOT_SSIDS`, `HOTSPOT_DHCP_MARKERS`, `STRICT_SSID`, `NOTIFICATION_LOCALE` key는 저장 시 제거함. 저장창은 config write 성공까지만 기다리고, LaunchAgent 반영과 현재 network state에 대한 `hotspot-proxy-toggle run` 호출은 저장창을 닫은 뒤 비동기로 수행함. 설정값이 실제로 바뀌지 않은 저장은 config file rewrite, LaunchAgent reload, reconcile을 생략함. 자동 시작을 끄면 helper/menu LaunchAgent plist는 제거하지만 현재 열려 있는 menu app process는 유지함.
+
+이름이 비어 있으면 입력란에서 안내하고 저장을 보류함. 현재 Wi-Fi 이름을 읽을 수 없을 때와 설정에 이름이 없을 때 메뉴 안내를 구분함. 창을 닫고 다시 열면 마지막 저장값으로 시작하며, 저장한 언어는 모든 메뉴 항목에 즉시 적용됨.
 
 Settings window는 hotspot/proxy decision이나 macOS proxy write policy를 재구현하지 않음.
 

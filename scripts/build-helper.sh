@@ -13,6 +13,7 @@ fi
 /bin/mkdir -p "$BUILD_DIR"
 
 swiftc \
+  "$ROOT_DIR/Sources/RetryActivity.swift" \
   "$ROOT_DIR/Sources/hotspot-proxy-toggle-helper/main.swift" \
   -framework SystemConfiguration \
   -o "$OUTPUT"

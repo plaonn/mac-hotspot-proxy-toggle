@@ -150,6 +150,7 @@ enum ProxySummary {
     case on
     case unavailable(String)
     case identityUnknown
+    case needsHotspotName
     case settingsError(String)
     case idle
     case off
@@ -161,6 +162,7 @@ enum ProxySummary {
         case "on": self = .on
         case "unavailable": self = .unavailable(detail)
         case "error": self = .settingsError(detail)
+        case "setup_required": self = .needsHotspotName
         case "identity_unknown": self = .identityUnknown
         case "checking": self = .checking
         case "idle": self = .idle
@@ -179,7 +181,7 @@ enum ProxySummary {
             case .unavailable(let reason):
                 switch reason {
                 case "authentication_required": return "프록시 인증 필요"
-                case "timeout": return "프록시 응답 대기 시간 초과"
+                case "timeout", "connection_failed": return "프록시 응답 대기 중"
                 case "unexpected_response": return "예상한 프록시 응답을 받지 못함"
                 case "not_applied": return "Mac 프록시 설정 적용 대기"
                 default: return "Mac에서 프록시 연결을 확인하지 못함"
@@ -187,7 +189,8 @@ enum ProxySummary {
             case .settingsError("external_change"): return "사용자가 변경한 프록시 설정 유지 중"
             case .settingsError("protected_endpoint"): return "기존 인증 프록시 설정 유지 중"
             case .settingsError: return "Mac 프록시 설정을 적용하거나 확인할 수 없음"
-            case .identityUnknown: return "핫스팟 이름을 확인할 수 없음"
+            case .needsHotspotName: return "핫스팟 이름 설정 필요"
+            case .identityUnknown: return "현재 Wi-Fi 이름 확인 불가"
             case .idle: return "핫스팟 대기"
             case .off: return "핫스팟 프록시 꺼짐"
             case .notWiFi: return "Wi-Fi 준비 안 됨"
@@ -200,7 +203,7 @@ enum ProxySummary {
             case .unavailable(let reason):
                 switch reason {
                 case "authentication_required": return "Proxy Authentication Required"
-                case "timeout": return "Proxy Response Timed Out"
+                case "timeout", "connection_failed": return "Waiting for Proxy"
                 case "unexpected_response": return "Unexpected Proxy Response"
                 case "not_applied": return "Waiting for Mac Proxy Settings"
                 default: return "Could Not Confirm Proxy Connection"
@@ -208,7 +211,8 @@ enum ProxySummary {
             case .settingsError("external_change"): return "Preserving Modified Proxy Settings"
             case .settingsError("protected_endpoint"): return "Preserving Existing Authenticated Proxy"
             case .settingsError: return "Could Not Apply or Verify Mac Proxy Settings"
-            case .identityUnknown: return "Hotspot Identity Unknown"
+            case .needsHotspotName: return "Set Your Hotspot Name"
+            case .identityUnknown: return "Current Wi-Fi Name Unavailable"
             case .idle: return "Hotspot Proxy Idle"
             case .off: return "Hotspot Proxy Off"
             case .notWiFi: return "Wi-Fi Not Ready"
@@ -217,12 +221,25 @@ enum ProxySummary {
         }
     }
 
-    func statusText(locale: MenuLocale) -> String {
-        switch locale.resolved {
-        case .ko:
-            return "상태: \(title(locale: locale))"
-        case .auto, .en:
-            return "Status: \(title(locale: locale))"
+    func guidance(locale: MenuLocale, automaticRetry: Bool) -> String? {
+        let korean = locale.resolved == .ko
+        switch self {
+        case .needsHotspotName:
+            return korean ? "설정에서 휴대폰 핫스팟 이름을 입력하세요." : "Enter your phone’s hotspot name in Settings."
+        case .unavailable("authentication_required"):
+            return korean ? "인증 없는 프록시만 지원합니다." : "Only proxies without authentication are supported."
+        case .unavailable(let reason):
+            var text = ""
+            if reason == "timeout" {
+                text = korean ? "응답 시간이 초과됐습니다." : "The connection timed out."
+            }
+            if automaticRetry {
+                let hint = korean ? "자동으로 다시 시도합니다." : "Will retry automatically."
+                return text.isEmpty ? hint : text + " " + hint
+            }
+            return text.isEmpty ? nil : text
+        default:
+            return nil
         }
     }
 
@@ -232,7 +249,7 @@ enum ProxySummary {
             switch self {
             case .checking: return "핫스팟 프록시 상태를 확인하는 중입니다."
             case .on: return "Mac에 핫스팟 프록시 설정이 적용됐습니다."
-            case .unavailable, .identityUnknown, .settingsError: return title(locale: locale)
+            case .unavailable, .identityUnknown, .needsHotspotName, .settingsError: return title(locale: locale)
             case .idle: return "현재 Wi-Fi는 설정한 핫스팟이 아닙니다."
             case .off: return "핫스팟 프록시가 꺼져 있습니다."
             case .notWiFi: return "Wi-Fi route 또는 router가 준비되지 않았습니다."
@@ -242,7 +259,7 @@ enum ProxySummary {
             switch self {
             case .checking: return "Hotspot proxy status is being checked."
             case .on: return "The hotspot proxy settings are applied on this Mac."
-            case .unavailable, .identityUnknown, .settingsError: return title(locale: locale)
+            case .unavailable, .identityUnknown, .needsHotspotName, .settingsError: return title(locale: locale)
             case .idle: return "Current Wi-Fi is not a configured hotspot."
             case .off: return "Hotspot proxy is off."
             case .notWiFi: return "Wi-Fi route or router is not ready."
@@ -257,7 +274,7 @@ enum ProxySummary {
             return .hotspotProxyOn
         case .unavailable, .settingsError, .error:
             return .hotspotProxyOff
-        case .checking, .idle, .off, .notWiFi, .identityUnknown:
+        case .checking, .idle, .off, .notWiFi, .identityUnknown, .needsHotspotName:
             return .nonHotspot
         }
     }
@@ -886,13 +903,17 @@ final class AutomationController {
     }
 }
 
-final class SettingsWindowController: NSWindowController {
+final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
+    var didSave: (() -> Void)?
     private let config: MenuConfig
     private let hotspotLabel = NSTextField(labelWithString: "")
     private let proxyTypeLabel = NSTextField(labelWithString: "")
     private let proxyPortLabel = NSTextField(labelWithString: "")
     private let languageLabel = NSTextField(labelWithString: "")
-    private let advancedLabel = NSTextField(labelWithString: "")
+    private let stack = NSStackView()
+    private let advancedButton = NSButton()
+    private let advancedFields = NSStackView()
+    private let nameError = NSTextField(labelWithString: "")
     private let timeoutLabel = NSTextField(labelWithString: "")
     private let watchdogLabel = NSTextField(labelWithString: "")
     private let hotspotField = NSTextField()
@@ -918,8 +939,17 @@ final class SettingsWindowController: NSWindowController {
         window.center()
         super.init(window: window)
         buildContent()
-        loadValues()
-        applyLanguage()
+    }
+
+    override func showWindow(_ sender: Any?) {
+        if window?.isVisible != true {
+            loadValues()
+            nameError.isHidden = true
+            advancedFields.isHidden = true
+            applyLanguage()
+            resizeToFit()
+        }
+        super.showWindow(sender)
     }
 
     required init?(coder: NSCoder) {
@@ -931,8 +961,8 @@ final class SettingsWindowController: NSWindowController {
             return
         }
 
-        let stack = NSStackView()
         stack.orientation = .vertical
+        stack.alignment = .leading
         stack.spacing = 12
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -942,7 +972,6 @@ final class SettingsWindowController: NSWindowController {
             stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             stack.topAnchor.constraint(equalTo: contentView.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
         ])
 
         proxyTypePopup.addItems(withTitles: ["SOCKS5", "HTTP/HTTPS Web Proxy"])
@@ -950,21 +979,30 @@ final class SettingsWindowController: NSWindowController {
         languagePopup.target = self
         languagePopup.action = #selector(languageChanged)
 
+        hotspotField.delegate = self
+        nameError.textColor = .systemRed
+        nameError.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        nameError.isHidden = true
         stack.addArrangedSubview(row(labelView: hotspotLabel, control: hotspotField))
+        stack.addArrangedSubview(nameError)
         stack.addArrangedSubview(row(labelView: proxyTypeLabel, control: proxyTypePopup))
         stack.addArrangedSubview(row(labelView: proxyPortLabel, control: proxyPortField))
         stack.addArrangedSubview(row(labelView: languageLabel, control: languagePopup))
         stack.addArrangedSubview(startAutomaticallyCheckbox)
-        configureSeparator(advancedLabel)
-        stack.addArrangedSubview(advancedLabel)
-        stack.addArrangedSubview(row(labelView: timeoutLabel, control: timeoutField, labelWidth: 250, controlWidth: 80))
-        stack.addArrangedSubview(row(labelView: watchdogLabel, control: watchdogField, labelWidth: 250, controlWidth: 80))
-
-        let buttons = NSStackView()
-        buttons.orientation = .horizontal
+        advancedButton.isBordered = false
+        advancedButton.imagePosition = .imageLeading
+        advancedButton.target = self
+        advancedButton.action = #selector(toggleAdvanced)
+        stack.addArrangedSubview(advancedButton)
+        advancedFields.orientation = .vertical
+        advancedFields.alignment = .leading
+        advancedFields.spacing = 10
+        advancedFields.addArrangedSubview(row(labelView: timeoutLabel, control: timeoutField, labelWidth: 244, controlWidth: 96))
+        advancedFields.addArrangedSubview(row(labelView: watchdogLabel, control: watchdogField, labelWidth: 244, controlWidth: 96))
+        let buttons = NSStackView(views: [openConfigButton, openLogButton])
         buttons.spacing = 8
-        buttons.alignment = .centerY
-        buttons.distribution = .fillEqually
+        advancedFields.addArrangedSubview(buttons)
+        stack.addArrangedSubview(advancedFields)
 
         openConfigButton.target = self
         openConfigButton.action = #selector(openConfig)
@@ -973,10 +1011,9 @@ final class SettingsWindowController: NSWindowController {
         saveButton.target = self
         saveButton.action = #selector(save)
         saveButton.keyEquivalent = "\r"
-        buttons.addArrangedSubview(openConfigButton)
-        buttons.addArrangedSubview(openLogButton)
-        buttons.addArrangedSubview(saveButton)
-        stack.addArrangedSubview(buttons)
+        let footer = NSStackView(views: [NSView(), saveButton])
+        stack.addArrangedSubview(footer)
+        footer.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
     }
 
     private func row(labelView: NSTextField, control: NSView, labelWidth: CGFloat = 150, controlWidth: CGFloat = 190) -> NSStackView {
@@ -989,9 +1026,34 @@ final class SettingsWindowController: NSWindowController {
         return row
     }
 
-    private func configureSeparator(_ view: NSTextField) {
-        view.font = NSFont.boldSystemFont(ofSize: NSFont.smallSystemFontSize)
-        view.textColor = .secondaryLabelColor
+    @objc private func toggleAdvanced() {
+        advancedFields.isHidden.toggle()
+        updateDisclosure()
+        resizeToFit()
+    }
+
+    private func updateDisclosure() {
+        let symbol = advancedFields.isHidden ? "chevron.right" : "chevron.down"
+        advancedButton.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        advancedButton.setAccessibilityExpanded(!advancedFields.isHidden)
+    }
+
+    private func resizeToFit() {
+        guard let window, let content = window.contentView else { return }
+        content.layoutSubtreeIfNeeded()
+        let height = ceil(stack.fittingSize.height)
+        let delta = height - content.bounds.height
+        var frame = window.frame
+        frame.origin.y -= delta
+        frame.size.height += delta
+        window.setFrame(frame, display: true)
+    }
+
+    func controlTextDidChange(_ notification: Notification) {
+        if !nameError.isHidden && !hotspotField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            nameError.isHidden = true
+            resizeToFit()
+        }
     }
 
     private func loadValues() {
@@ -1015,14 +1077,17 @@ final class SettingsWindowController: NSWindowController {
     private func applyLanguage() {
         let korean = selectedLanguage().resolved == .ko
         window?.title = korean ? "\(BuildInfo.appName) 설정" : "\(BuildInfo.appName) Settings"
-        hotspotLabel.stringValue = korean ? "핫스팟 SSID" : "Hotspot SSID"
+        hotspotLabel.stringValue = korean ? "핫스팟 이름 (SSID)" : "Hotspot Name (SSID)"
+        nameError.stringValue = korean ? "휴대폰 핫스팟 이름을 입력하세요." : "Enter your phone’s hotspot name."
+        languagePopup.item(at: 0)?.title = korean ? "시스템 기본값" : "System Default"
         proxyTypeLabel.stringValue = korean ? "프록시 유형" : "Proxy Type"
         proxyPortLabel.stringValue = korean ? "프록시 포트" : "Proxy Port"
         languageLabel.stringValue = korean ? "언어" : "Language"
-        startAutomaticallyCheckbox.title = korean ? "자동 시작" : "Start Automatically"
-        advancedLabel.stringValue = korean ? "고급" : "Advanced"
+        startAutomaticallyCheckbox.title = korean ? "로그인 시 자동 시작" : "Start at Login"
+        advancedButton.title = korean ? "고급" : "Advanced"
+        updateDisclosure()
         timeoutLabel.stringValue = korean ? "프록시 확인 제한시간 (초)" : "Proxy Check Timeout (seconds)"
-        watchdogLabel.stringValue = korean ? "Watchdog 간격 (초)" : "Watchdog Interval (seconds)"
+        watchdogLabel.stringValue = korean ? "자동 재시도 간격 (초)" : "Automatic Retry Interval (seconds)"
         openConfigButton.title = korean ? "설정 파일 열기" : "Open Config"
         openLogButton.title = korean ? "로그 열기" : "Open Log"
         saveButton.title = korean ? "저장" : "Save"
@@ -1037,9 +1102,16 @@ final class SettingsWindowController: NSWindowController {
     }
 
     @objc private func save() {
+        guard !hotspotField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            nameError.isHidden = false
+            resizeToFit()
+            window?.makeFirstResponder(hotspotField)
+            NSAccessibility.post(element: nameError, notification: .valueChanged)
+            return
+        }
         guard validatePositiveInteger(proxyPortField.stringValue, nameEn: "Proxy Port", nameKo: "프록시 포트", min: 1, max: 65535),
               validatePositiveInteger(timeoutField.stringValue, nameEn: "Proxy Check Timeout", nameKo: "프록시 확인 제한시간", min: 1, max: 60),
-              validatePositiveInteger(watchdogField.stringValue, nameEn: "Watchdog Interval", nameKo: "Watchdog 간격", min: 0, max: 3600) else {
+              validatePositiveInteger(watchdogField.stringValue, nameEn: "Automatic Retry Interval", nameKo: "자동 재시도 간격", min: 0, max: 3600) else {
             return
         }
 
@@ -1076,6 +1148,7 @@ final class SettingsWindowController: NSWindowController {
                 DispatchQueue.main.async {
                     self?.setSaving(false)
                     self?.close()
+                    self?.didSave?()
                 }
                 self?.applySavedSettings(
                     command: command,
@@ -1169,19 +1242,17 @@ final class SettingsWindowController: NSWindowController {
     }
 }
 
-final class MenuBarApp: NSObject, NSApplicationDelegate {
+final class MenuBarApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let config: MenuConfig
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    private let menu = NSMenu()
-    private lazy var statusMenuItem = NSMenuItem(
-        title: ProxySummary.checking.statusText(locale: config.locale),
-        action: nil,
-        keyEquivalent: ""
-    )
-    private lazy var retryItem = NSMenuItem(
-        title: menuText(en: "Reconnect Now", ko: "지금 다시 연결"),
-        action: #selector(reconcileNow), keyEquivalent: "r"
-    )
+    let menu = NSMenu()
+    private let statusMenuItem = NSMenuItem()
+    private let guidanceItem = NSMenuItem()
+    private let retryItem = NSMenuItem(title: "", action: #selector(reconcileNow), keyEquivalent: "r")
+    private let settingsItem = NSMenuItem(title: "", action: #selector(openSettings), keyEquivalent: ",")
+    private let quitItem = NSMenuItem(title: "", action: #selector(quit), keyEquivalent: "q")
+    private var currentSummary = ProxySummary.checking
+    private var menuIsOpen = false
     private var isReconnecting = false
     private var isStopping = false
     private var observation = 0
@@ -1223,7 +1294,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func configureStatusItem() {
+    func configureStatusItem() {
         statusItem.length = config.title.isEmpty ? NSStatusItem.squareLength : NSStatusItem.variableLength
         if let button = statusItem.button {
             button.title = config.title
@@ -1233,30 +1304,43 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
             button.toolTip = ProxySummary.checking.tooltip(locale: effectiveLocale())
         }
 
-        statusMenuItem.isEnabled = false
-
-        let headerItem = NSMenuItem(title: "\(BuildInfo.appName) \(BuildInfo.appVersion)", action: nil, keyEquivalent: "")
-        headerItem.isEnabled = false
-        menu.addItem(headerItem)
-        menu.addItem(.separator())
+        menu.delegate = self
         menu.addItem(statusMenuItem)
-        retryItem.isHidden = true
+        menu.addItem(guidanceItem)
         menu.addItem(retryItem)
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: menuText(en: "Settings...", ko: "설정..."), action: #selector(openSettings), keyEquivalent: ","))
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: menuText(en: "Quit \(BuildInfo.appName)", ko: "\(BuildInfo.appName) 종료"), action: #selector(quit), keyEquivalent: "q"))
-
-        for item in menu.items {
-            item.target = self
-        }
-
+        menu.addItem(settingsItem)
+        menu.addItem(quitItem)
+        for item in [retryItem, settingsItem, quitItem] { item.target = self }
         statusItem.menu = menu
+        apply(summary: .checking)
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        renderMenu(checkAutomaticRetry: true)
+    }
+
+    func menuWillOpen(_ menu: NSMenu) { menuIsOpen = true }
+    func menuDidClose(_ menu: NSMenu) { menuIsOpen = false }
+
+    private func automaticRetryActive() -> Bool {
+        if RetryActivity.isActive(identityPath: defaultWiFiIdentityPath()) { return true }
+        // The polling fallback uses a repeating launchd job instead of the helper timer.
+        let label = "com.github.plaonn.hotspot-proxy-toggle"
+        let path = "\(homeDirectory())/Library/LaunchAgents/\(label).plist"
+        guard let interval = NSDictionary(contentsOfFile: path)?["StartInterval"] as? Int,
+              interval > 0 else { return false }
+        return launchAgentIsLoaded(label: label)
     }
 
     @objc private func openSettings() {
         if settingsWindowController == nil {
-            settingsWindowController = SettingsWindowController(config: config)
+            let controller = SettingsWindowController(config: config)
+            controller.didSave = { [weak self] in
+                guard let self else { return }
+                self.apply(summary: self.currentSummary)
+            }
+            settingsWindowController = controller
         }
         settingsWindowController?.showWindow(nil)
         settingsWindowController?.window?.makeKeyAndOrderFront(nil)
@@ -1288,7 +1372,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         guard !isReconnecting, !isStopping else { return }
         isReconnecting = true
         observation += 1
-        setChecking()
+        apply(summary: .checking)
         runCommand(argument: "run") { [weak self] result in
             DispatchQueue.main.async {
                 guard let self, !self.isStopping else { return }
@@ -1302,7 +1386,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         guard !isStopping else { return }
         isStopping = true
         observation += 1
-        setChecking()
+        apply(summary: .checking)
         runCommand(argument: "stop") { [weak self] result in
             guard let self else { return }
             guard result.status == 0 else {
@@ -1322,25 +1406,28 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func setChecking() {
-        retryItem.isHidden = true
-        statusMenuItem.title = ProxySummary.checking.statusText(locale: effectiveLocale())
-        statusItem.button?.image = MenuBarIcon.image(for: ProxySummary.checking.iconStyle)
-        statusItem.button?.toolTip = ProxySummary.checking.tooltip(locale: effectiveLocale())
+    func apply(summary: ProxySummary) {
+        currentSummary = summary
+        renderMenu(checkAutomaticRetry: menuIsOpen)
     }
 
-    private func apply(summary: ProxySummary) {
-        if case .unavailable = summary {
-            retryItem.isHidden = false
-        } else {
-            retryItem.isHidden = true
-        }
+    private func renderMenu(checkAutomaticRetry: Bool) {
         let locale = effectiveLocale()
-        statusMenuItem.title = summary.statusText(locale: locale)
+        let korean = locale.resolved == .ko
+        let waiting: Bool
+        if case .unavailable = currentSummary { waiting = true } else { waiting = false }
+        let guidance = currentSummary.guidance(locale: locale, automaticRetry: waiting && checkAutomaticRetry && automaticRetryActive())
+        statusMenuItem.title = currentSummary.title(locale: locale)
+        guidanceItem.title = guidance ?? ""
+        guidanceItem.isHidden = guidance == nil
+        retryItem.isHidden = !waiting
+        retryItem.title = korean ? "지금 다시 연결" : "Reconnect Now"
+        settingsItem.title = korean ? "설정…" : "Settings…"
+        quitItem.title = korean ? "종료" : "Quit"
         statusItem.button?.title = config.title
-        statusItem.button?.image = MenuBarIcon.image(for: summary.iconStyle)
+        statusItem.button?.image = MenuBarIcon.image(for: currentSummary.iconStyle)
         statusItem.button?.imagePosition = config.title.isEmpty ? .imageOnly : .imageLeft
-        statusItem.button?.toolTip = summary.tooltip(locale: locale)
+        statusItem.button?.toolTip = currentSummary.tooltip(locale: locale)
     }
 
     private func readStateOrRefresh() {
@@ -1377,7 +1464,7 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         }
         let fields = line.split(separator: " ")
         let kind = String(fields[0].dropFirst("ui_state=".count))
-        guard result.status == 0 || kind == "error" else { return .error }
+        guard result.status == 0 || kind == "error" || kind == "setup_required" else { return .error }
         let detail = fields.dropFirst().first.map { String($0.dropFirst("detail=".count)) } ?? ""
         return ProxySummary(kind: kind, detail: detail)
     }
@@ -1552,15 +1639,6 @@ final class MenuBarApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func menuText(en: String, ko: String) -> String {
-        switch effectiveLocale().resolved {
-        case .ko:
-            return ko
-        case .auto, .en:
-            return en
-        }
-    }
-
     private func effectiveLocale() -> MenuLocale {
         if config.locale != .auto {
             return config.locale
@@ -1618,7 +1696,11 @@ func acquireSingleInstanceLock() -> Int32? {
 }
 
 func homeDirectory() -> String {
-    FileManager.default.homeDirectoryForCurrentUser.path
+    #if MENU_UI_TEST
+    return CommandLine.arguments[1]
+    #else
+    return FileManager.default.homeDirectoryForCurrentUser.path
+    #endif
 }
 
 func xmlEscape(_ value: String) -> String {
@@ -1649,6 +1731,9 @@ func printUsage() {
     )
 }
 
+#if MENU_UI_TEST
+try runMenuUITests()
+#else
 do {
     if CommandLine.arguments.dropFirst().first == "--notify" {
         let config = try NotificationConfig.parse(CommandLine.arguments)
@@ -1675,3 +1760,4 @@ do {
     fputs("error: \(error)\n", stderr)
     exit(1)
 }
+#endif

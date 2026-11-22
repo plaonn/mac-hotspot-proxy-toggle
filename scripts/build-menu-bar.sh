@@ -38,6 +38,7 @@ fi
 } >"$GENERATED_VERSION"
 
 swiftc \
+  "$ROOT_DIR/Sources/RetryActivity.swift" \
   -suppress-warnings \
   "$ROOT_DIR/Sources/NotificationPresentation.swift" \
   "$ROOT_DIR/Sources/hotspot-proxy-toggle-menu/main.swift" \

@@ -116,7 +116,7 @@ Source install은 Finder와 Spotlight에서 실행할 수 있는 `Mac Hotspot Pr
 
 `Quit Mac Hotspot Proxy Toggle`로 menu bar item과 helper를 내린 뒤에는 Finder, Spotlight, Launchpad에서 `Mac Hotspot Proxy Toggle`을 실행해 다시 올릴 수 있습니다. 앱은 Dock icon을 띄우지 않고 menu bar item만 표시합니다.
 
-`Mac Hotspot Proxy Toggle.app` menu의 `Settings...`에서는 `Hotspot SSID`, `Proxy Type`, `Proxy Port`, `Language`, `Start Automatically`를 설정할 수 있습니다. `Start Automatically`는 background helper와 menu bar app을 하나의 사용자 설정으로 함께 켜거나 끕니다.
+`Mac Hotspot Proxy Toggle.app` menu의 `설정…`에서는 `핫스팟 이름 (SSID)`, `프록시 유형`, `프록시 포트`, `언어`, `로그인 시 자동 시작`을 설정할 수 있습니다. `로그인 시 자동 시작`은 background helper와 menu bar app을 하나의 사용자 설정으로 함께 켜거나 끕니다.
 
 App bundle 설치를 생략하려면 다음처럼 실행합니다.
 

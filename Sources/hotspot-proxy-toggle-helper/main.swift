@@ -109,6 +109,7 @@ final class EventHelper {
     private var isRunning = false
     private var pendingAfterRun = false
     private var recentRuns: [Date] = []
+    private var retryActivityFD: Int32 = -1
     private var watchdogTimer: DispatchSourceTimer?
     private var identitySnapshot: Data?
     private var identityFileWatcher: DispatchSourceFileSystemObject?
@@ -383,6 +384,9 @@ final class EventHelper {
     }
 
     private func startWatchdog() {
+        if !config.dryRun && retryActivityFD < 0 {
+            retryActivityFD = RetryActivity.begin(identityPath: config.identityPath)
+        }
         guard watchdogTimer == nil else {
             return
         }
@@ -407,6 +411,10 @@ final class EventHelper {
 
         timer.cancel()
         watchdogTimer = nil
+        if retryActivityFD >= 0 {
+            close(retryActivityFD)
+            retryActivityFD = -1
+        }
         log("stopped endpoint watchdog; reason=\(reason)")
     }
 

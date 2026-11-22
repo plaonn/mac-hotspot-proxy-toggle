@@ -66,6 +66,9 @@ wait_for_pattern "running command; reason=startup" "$TEST_TMP/helper.log"
 /bin/mv "$TEST_TMP/wifi-identity.json.tmp" "$TEST_TMP/wifi-identity.json"
 wait_for_pattern "running command; reason=identity-change" "$TEST_TMP/helper.log"
 wait_for_pattern "started endpoint watchdog" "$TEST_TMP/helper.log"
+retry_lock="$TEST_TMP/wifi-identity.json.retry.lock"
+[[ -f "$retry_lock" ]]
+/usr/bin/ruby -e 'File.open(ARGV.first) { |f| abort "retry inactive" if f.flock(File::LOCK_EX | File::LOCK_NB) }' "$retry_lock"
 
 /usr/bin/printf '%s\n' "on" >"$FAKE_MODE"
 wait_for_pattern "running command; reason=endpoint-watchdog" "$TEST_TMP/helper.log"
@@ -96,6 +99,7 @@ printf 'ok - unrelated state files do not trigger identity reconciliation\n'
 
 /bin/kill "$HELPER_PID"
 wait "$HELPER_PID" 2>/dev/null || true
+/usr/bin/ruby -e 'File.open(ARGV.first) { |f| abort "stale retry" unless f.flock(File::LOCK_EX | File::LOCK_NB) }' "$retry_lock"
 echo off >"$FAKE_MODE"
 "$HELPER_BIN" --command "$TEST_TMP/fake-command" --identity "$TEST_TMP/throttle/id" \
   --debounce 0.02 --max-runs 1 --window 0.8 --watchdog 0.15 >"$TEST_TMP/deferred.log" 2>&1 &

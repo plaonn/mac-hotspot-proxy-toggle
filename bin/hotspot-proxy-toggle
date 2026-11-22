@@ -642,11 +642,12 @@ inspect_connection() {
   case "$evaluation" in
     status=hotspot*)
       case "$probe" in ready|unchecked) kind="on" ;; *) kind="unavailable" ;; esac ;;
-    *reason=ssid-unknown|*reason=no-hotspot-ssid) kind="identity_unknown" ;;
+    *reason=ssid-unknown) kind="identity_unknown" ;;
     status=not-hotspot*) kind="idle" ;;
     status=not-wifi*|status=no-router*) kind="not_wifi" ;;
     *) kind="error" ;;
   esac
+  if [[ -z "$HOTSPOT_SSID" ]]; then kind="setup_required"; fi
   printf '%s\n' "$evaluation"
 }
 
@@ -673,7 +674,7 @@ do_status() {
       probe="not_applied"
     fi
   else
-    kind="error"
+    if [[ "$kind" != "setup_required" ]]; then kind="error"; fi
     probe="network_service_unavailable"
     printf 'network_service=unavailable\n'
   fi
@@ -690,7 +691,11 @@ do_run() {
     return
   fi
   if [[ -z "$PROXY_PORT" ]]; then
-    write_ui_state error port_missing
+    if [[ -z "$HOTSPOT_SSID" ]]; then
+      write_ui_state setup_required
+    else
+      write_ui_state error port_missing
+    fi
     return 64
   fi
   inspect_connection
